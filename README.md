@@ -1,64 +1,44 @@
+Current status:
+- [x] Everything is going well
+- [ ] I'm falling behind and need to reconfigure
+
+
 # Everything Search
 
-Implementation of everything search system. The case study below describes the details of how the system works. At the end a road map identifies different components to be implemented and shows the status of completion.
+Implementation of everything search project.
 
-## Example: Entity Search
+## Weekly Plan
 
-In this case study, we consider the entity search queries like "amazon customer service #emailid" where the goal is to retrieve entities of category "emailid" that appear in the same document as the keywords "amazon", "customer" and "service".
+Following plan has weekly checkpoints. Please refer to the checkboxes to measure the progress.
 
-### Step-1: specify base relations
+- [x] [September 27] Build expressions: create the class to hold conjunctive expressions and write methods to create them from string representations and as a subexpression of other expressions. Eg:- construct an expression object from the string "Q[k1, k2, c]\(d, e\):- K(k1, d), K(k2, d), E(e, d), C(e, c)". And then create subexpressions of Q corresponding to a given subset of sub-goals, say "Q134[k1, c]\(d, e\):- K(k1, d), E(e, d), C(e, c)".
 
-Initially, a user must list all the base relations along with a representative sample of it tuples. For this example, consider the following base relations:
+- [x] [October 4] Implement containment maps: it is a map from the variables of one expression to another, eg:- from the expression "S[k]\(d, e\):- K(k, d), E(d, e)" to the expression "T[k1, k2, c]\(e\):- K(k1, d), K(k2, d), E(e, d), C(e, c)" we can have a partial map {k->k1, d->d, e->e}. The partial containment map must make sure that each sub-goal of the source expression "S" maps to some sub-goal of target expression "T". 
 
-1. "K" with columns ["k", "d"] of types [string, int] respectively where "k" stands for keywords and "d" stands for document-id. A tuple (k, d) in K signifies that the keyword 'k' is present in the document 'd'
+- [ ] [October 11] Identify and merge similar expressions: implement two functionalities:
+	1. Given two expressions "E1[k1]\(d, e\):-K(k1, d), E(e, d)" and "E2[k2]\(d, e\):-K(k2, d), E(e, d)", identify that they are identicle give two containment maps for both side, {k1->k2, d->d, e->e} and {k2->k1, d->d, e->e}.
+	2. Identify if two given expressions have the same join structure. Eg:- "E1[k1]\(d, e\):- K(k1, d), E(e, d), C(e, phone)" and "E2[]\(d, e, c\):- K(red, d), E(e, d), C(e, c)" has the same join structure with the join variables "d" and "e". Return a merged expression "Emerged[k1]\(d, e, c\):- K(k1, d), E(e, d), C(e, c)" which is a generalization of the two subexpressions. Also obtain containment maps from this merged expression to the two original expressions. Eg:- {k1->k1, d->d, e->e, c->phone} and {k1->red, d->d, e->e, c->c}.
 
-2. "E" with columns ["e", "d"] of types [int, int] where "e" stands for entity id and "d" is document id. 
+- [ ] [October 18] Implement simple dataframe class along with functions to execute selection, projection and join operations on it. This class will be used in the cost model to compute queries on sampled dataset in order to generate cost estimates. Eg:- say we have sub-sampled tables K, E and C. Then we can estimate the size of the output of the query "Q[k1, k2, c]\(d, e\):- K(k1, d), K(k2, d), E(e, d), C(e, c)" by running the query on the sub-sampled tables. We replace the bound head variables (k1, k2 and c) with randomly sampled constants and repeat the execution a set number of times to obtain expected number of tuples in a randomly generated query instance.
 
-3. "C" with columns ["e", "c"] of types [int, string] where "e" is entity-id and "c" is a category to which the entity belongs to.
+- [ ] [October 25] Create classes to represent queries, indexes, view tuples, and query plans. Also write code to compute the sub-cores of a view tuple. For instance: the view tuple "I(a, c, d)" of the index "I(x, z, w):- A(x, y), B(y, z), C(z, w)" within the query "Q(a, c, e):- A(a, b), B(b, c), C(c, d), D(d, e)" has sub-cores {1, 2} and {3}.
 
-Along with the metadata, we also require a sample of tuples for each table. This sampled data is used to obtain cost estimates. For instance, say 10,000 tuples may be selected randomly out of the original base relation K to obtain a representative sample. For each base relation, we assume that a csv file contains this sampled data.
+- [ ] [November 1] Write test to check if a plan is complete or not by implementing backtracking algorithm for exact cover problem.
 
-### Step-2: specify query workload
+- [ ] [November 8] Compute index maintenance cost: use the dataframe class to estimate the index storage costs. 
 
-Next the user specifies a set of query workload along with the normalized weights. For instance, following is an example query workload:
+- [ ] [November 15] Compute query evaluation cost: use the dataframe class to estimate cost for each step of a query plan
 
-1. Q1[k1, k2]\(d, e\) :- K(k1, d); K(k2, d); E(e, d); C(e, "phone")
-2. Q2[k1, k2]\(d, e\) :- K(k1, d); K(k2, d); E(e, d); C(e, "email")
+- [ ] [November 22] Generate candidate index and view tuples: given a query "Q[k1, k2, c]\(d, e\):- K(k1, d), K(k2, d), E(e, d), C(e, c)", exhaustively generate indexes and the corresponding view tuples for each sub-expression.
 
-The first query is only concerned with the category "email" and the second query cares about phone numbers.
+- [ ] [November 29] Merge join isomorphic candidate indexes. Eg:- merge "I1(e):- C(e, phone)" and "I2(e):- C(e, email)" to obtain "I12(e, c):- C(e, c)". Project out head variables to obtain new candidate indexes from existing candidates. Eg:- starting from an index "I(x, y, z, w):- A(x, y), B(y, z), C(z, w)" and its view tuples, obtain the index "'I(x, z, w):- A(x, y), B(y, z), C(z, w)" and its updated view tuples.
 
-### Step-3: generate candidate indexes and view tuples
+- [ ] [December 6] Implement cost based pruning of indexes. 
+	1. If an index has too high maintenance cost then don't consider it
+	2. Compute lower and upper bounds on the cost contribution of each view tuple. If the lower bound of cost contribution of a view tuple is too high, then don't consider it.
 
-In this step, we generate candidate indexes to be stored. For instance, "INV[k]\(d\) :- K(k, d)" is a candidate index that maps keywords to the documents containing them. We generate candidate in the following 4 steps:
+- [ ] [December 13] Implement weighted set cover based optimizer
 
-1. Enumerate all subsets of goals within a workload query with size <= k (usually k=3). Keep only the subsets that are connected, i.e. no cross joins are present. Merge all isomorphic subsets to obtain a cnadidate index. All instances of a candidate index within a query form their view tuples. For instance, "INV[k1]\(d\)" and "INV[k2]\(d\)" are the view tuples of the above candidate index INV within both the queries covering one of the two goals in them.
+- [ ] [December 20] Implement branch and bound based optimizer
 
-2. Merge indexes that have the same join structure and differ only in the selection conditions. The merged index must be general enough so that it can be used in place of both of its indexes. For instance, the two indexes "I1[d]\(e\):-E(e,d); C(e, "phone")" and "I2[d]\(e\):-E(e,d); C(e, "email")" are merged into the index "I[d]\(c, e\):-E(e,d); C(e, c)". 
-
-3. Remove columns from an index to obtain more candidate indexes. For instance, consider the index "I[k]\(d, e\):-K(k,d); E(e,d); C(e,"phone")". Its view tuples "I[k1]\(d,e\)" has three sub-cores, within Q2, \{\{1\}, \{3\}, \{4\}\} corresponding to the goals covered by it. After we drop the column "e" from "I", we obtain the new candidate index "I'[k]\(d\):-K(k,d); E(e,d); C(e,"phone")". The recomputed sub-cores for the updated view tuple "I'[k1]\(d,e\)" is \{\{1\}\}. In this step, we drop columns from an index as long as we obtain a unique set of subcores for its view tuples. 
-
-4. For every candidate index, we consider all ways of dividing column into input columns and output columns. Different configuration may be initially pruned based on cost to reduce the size of the candidate index set.
-
-
-### Step-4: optimize for a least cost query plan
-
-Select the optimal set of indexes to store and the corresponding query plans. To compute the cost of a plan, we run the plan on the sampled base relations given as an input in the beginning.
-
-
-## Roadmap
-
-Implement the components:
-
-1. Candidate generator
-	- [x] step-1: generating subsets of goals and merging the isomorphic ones
-	- [] step-2: merge indexes that have the same join structure
-	- [] step-3: drop columns from an index to generate new candidates
-	- [] step-4: dividing columns into input and output for a given candidate index
-2. Cost model:
-	- [] class to represent the intermediate results of query execution
-	- [] implement algorithms for performing selects, projects and joins on the intermediate results
-	- [] implement cost computation for a query plan
-3. Optimization algorithm:
-	- [] implement set cover based heuristic
-	- [] implement branch and bound based search
 

@@ -28,13 +28,9 @@ doc:
 	cd $(DOCDIR); doxygen
 
 # Tests
-index_table_tests: $(OBJECTS)
-	@mkdir -p $(TEMPDIR)
-	$(CC) $^ $(CFLAGS) test/test_index_table.cpp $(INC) $(LIB) -o bin/test_index_table.out
-
 tests: $(OBJECTS)
 	@mkdir -p $(TEMPDIR)
-	$(CC) $^ $(CFLAGS) test/tests.cpp $(INC) $(LIB) -o bin/tests.out
+	$(CC) $^ $(CFLAGS) test/tests1.cpp $(INC) $(LIB) -o bin/tests1.out
 
 # Spikes
 ticket:
