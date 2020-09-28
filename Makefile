@@ -30,7 +30,7 @@ doc:
 # Tests
 tests: $(OBJECTS)
 	@mkdir -p $(TEMPDIR)
-	$(CC) $^ $(CFLAGS) test/tests1.cpp $(INC) $(LIB) -o bin/tests1.out
+	$(CC) $^ $(CFLAGS) test/tests.cpp $(INC) $(LIB) -o bin/tests.out
 
 # Spikes
 ticket:

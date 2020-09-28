@@ -13,7 +13,7 @@ Following plan has weekly checkpoints. Please refer to the checkboxes to measure
 
 - [x] [September 27] Build expressions: create the class to hold conjunctive expressions and write methods to create them from string representations and as a subexpression of other expressions. Eg:- construct an expression object from the string "Q[k1, k2, c]\(d, e\):- K(k1, d), K(k2, d), E(e, d), C(e, c)". And then create subexpressions of Q corresponding to a given subset of sub-goals, say "Q134[k1, c]\(d, e\):- K(k1, d), E(e, d), C(e, c)".
 
-- [x] [October 4] Implement containment maps: it is a map from the variables of one expression to another, eg:- from the expression "S[k]\(d, e\):- K(k, d), E(d, e)" to the expression "T[k1, k2, c]\(e\):- K(k1, d), K(k2, d), E(e, d), C(e, c)" we can have a partial map {k->k1, d->d, e->e}. The partial containment map must make sure that each sub-goal of the source expression "S" maps to some sub-goal of target expression "T". 
+- [ ] [October 4] Implement containment maps: it is a map from the variables of one expression to another, eg:- from the expression "S[k]\(d, e\):- K(k, d), E(d, e)" to the expression "T[k1, k2, c]\(e\):- K(k1, d), K(k2, d), E(e, d), C(e, c)" we can have a partial map {k->k1, d->d, e->e}. The partial containment map must make sure that each sub-goal of the source expression "S" maps to some sub-goal of target expression "T". 
 
 - [ ] [October 11] Identify and merge similar expressions: implement two functionalities:
 	1. Given two expressions "E1[k1]\(d, e\):-K(k1, d), E(e, d)" and "E2[k2]\(d, e\):-K(k2, d), E(e, d)", identify that they are identicle give two containment maps for both side, {k1->k2, d->d, e->e} and {k2->k1, d->d, e->e}.
