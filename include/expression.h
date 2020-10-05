@@ -20,12 +20,13 @@ public:
 		Symbol(const Data& data);
 		Symbol(int v);
 		bool operator==(const Symbol& symb) const;
-		bool operator<(const Symbol& symb) const;
+		//bool operator<(const Symbol& symb) const;
 	};
 	struct Goal {
 		const BaseRelation* br;
 		std::vector<Symbol> symbols; 
 		Goal(const BaseRelation* brarg, std::vector<Symbol> symbs);
+		bool operator==(const Goal& goal) const;
 	};
 private:
 	std::string name;
@@ -36,12 +37,16 @@ private:
 	std::set<int> boundheadvars;
 	std::set<int> freeheadvars;
 	std::set<int> headvars;
+	std::set<int> allvars;
 	std::string signature;
 public:
 	Expression(std::string expr, const std::map<std::string, const BaseRelation*>& name2br);   //!< parse an expression from a string representation
 	std::string show() const;  //!< returns a string representation for debugging purposes
 	Expression subexpression(std::set<int> subset_goals) const;  //!< returns a subexpression made up of given subset of goals. It shares the variables with the original query
-
+	int num_goals() const;
+	int name_to_var(const std::string& nm) const; //!< for debugging
+	const std::set<int>& vars() const;
+	const Goal& goal_at(int pos) const;
 private:
 	Expression(); //!< creates an empty expression
 };

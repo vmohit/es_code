@@ -1,4 +1,5 @@
 #include "expression.h"
+#include "containment_map.h"
 #include "data.h"
 
 #include <tuple>
@@ -26,7 +27,7 @@ void test_expression() {
 	for(auto &br: brs)
 		cout<<br.show()<<endl;
 
-	map<std::string, const BaseRelation*> name2br={{"K", &brs[0]}, {"E", &brs[1]}, {"C", &brs[2]}};
+	map<std::string, const BaseRelation*> name2br {{"K", &brs[0]}, {"E", &brs[1]}, {"C", &brs[2]}};
 	string query = "Qent[k1, k2](d, e) :- K(k1, d); K(k2, d); E(e, d); C(e, str_phone); E(int_3, d); E(int_4, d)";
 	Expression expr(query, name2br);
 	cout<<expr.show()<<endl;  // Qent[k1, k2, ](d, e, ) :- K(k1, d, ), K(k2, d, ), E(e, d, ), C(e, String[bs=0](phone), ), E(Int(3), d, ), E(Int(4), d, ),
@@ -36,4 +37,11 @@ void test_expression() {
 	
 	Expression exp_k1d = expr.subexpression(set<int>{0,4});
 	cout<<exp_k1d.show()<<endl;
+
+	ContainmentMap cm {&exp_k2d, &exp_k1d, {{exp_k2d.name_to_var("k2"), exp_k1d.name_to_var("k1")}, 
+					{exp_k2d.name_to_var("d"), exp_k1d.name_to_var("d")} } };
+
+	for(int i=0; i<exp_k2d.num_goals(); i++) {
+		cout<<exp_k2d.goal_at(i).br->get_name()<<" "<<exp_k1d.goal_at(cm.at(i)).br->get_name()<<endl;
+	}
 }

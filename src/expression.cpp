@@ -33,6 +33,20 @@ Expression::Symbol::Symbol(int v) : dt(0), var(v) {
 	isconstant = false;
 }
 
+bool Expression::Symbol::operator==(const Expression::Symbol& symb) const {
+	if(isconstant!=symb.isconstant) return false;
+	if(isconstant) return dt==symb.dt;
+	else return var==symb.var;
+}
+
+// bool Expression::Symbol::operator<(const Expression::Symbol& symb) const {
+// 	if(isconstant != symb.isconstant)
+// 		return isconstant < symb.isconstant;
+// 	if(isconstant)
+// 		return dt<symb.dt;
+// 	else
+// 		return var<symb.var;
+// }
 
 // functions of class Expression::Goal
 
@@ -41,6 +55,12 @@ Expression::Goal::Goal(const BaseRelation* brarg, std::vector<Symbol> symbs)
 	assert((int) symbols.size() == brarg->get_num_cols());
 }
 
+bool Expression::Goal::operator==(const Expression::Goal& goal) const {
+	if(br!=goal.br) return false;
+	for(uint i=0; i<symbols.size(); i++) 
+		if(!(symbols[i]==goal.symbols[i])) return false;
+	return true;
+}
 
 // functions of class Expression
 
@@ -113,6 +133,8 @@ Expression() {
 		headvars.insert(name2var.at(varname));
 	}
 
+	for(auto it=var2name.begin(); it!=var2name.end(); it++)
+		allvars.insert(it->first);
 }
 
 
@@ -161,21 +183,19 @@ Expression Expression::subexpression(std::set<int> subset_goals) const {
 }
 
 
-bool Expression::Symbol::operator==(const Expression::Symbol& symb) const {
-	if(isconstant == symb.isconstant) {
-		if(isconstant) 
-			return dt==symb.dt;
-		else 
-			return var==symb.var;
-	}
-	return false;
+
+int Expression::num_goals() const {
+	return (int) goals.size();
 }
 
-bool Expression::Symbol::operator<(const Expression::Symbol& symb) const {
-	if(isconstant != symb.isconstant)
-		return isconstant < symb.isconstant;
-	if(isconstant)
-		return dt<symb.dt;
-	else
-		return var<symb.var;
+const set<int>& Expression::Expression::vars() const {
+	return allvars;
+}
+
+const Expression::Goal& Expression::goal_at(int pos) const {
+	return goals.at(pos);
+}
+
+int Expression::name_to_var(const std::string& nm) const {
+	return name2var.at(nm);
 }
