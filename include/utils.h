@@ -44,6 +44,27 @@ namespace esutils {
 	uint set_intersection_size(const std::set<uint>& s1, const std::set<uint>& s2);
 	void set_difference_inplace(std::set<uint>& s1, const std::set<uint>& s2);
 
+	template <class T>
+	std::set<T> set_intersection(const std::set<T>& s1, const std::set<T>& s2) {
+		std::set<T> newset;
+		if(s1.size()<s2.size()) {
+			for(auto& ele: s1)
+				if(s2.find(ele)!=s2.end())
+					newset.insert(ele);
+		}
+		else {
+			for(auto& ele: s2)
+				if(s1.find(ele)!=s1.end())
+					newset.insert(ele);
+		}
+		return newset;
+	}
+
+	template <class T>
+	void set_intersection_inplace(std::set<T>& s1, const std::set<T>& s2) {
+		s1 = set_intersection(s1, s2);
+	}
+
 	/**One-to-one map that supports functions like find, at, etc. in the reverse direction as well*/
 	template <class L, class R>
 	class oto_map { 

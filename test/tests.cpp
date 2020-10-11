@@ -1,6 +1,8 @@
 #include "expression.h"
 #include "containment_map.h"
 #include "data.h"
+#include "dataframe.h"
+#include "utils.h"
 
 #include <tuple>
 #include <iostream>
@@ -10,17 +12,20 @@
 #include <vector>
 
 using namespace std;
+using namespace esutils;
 
 void test_expression();
+void test_dataframe();
 
 int main() {
 	cout<<"Testing expression: \n\n";
 	test_expression();
-
+	test_dataframe();
 	return 0;
 }
 
 void test_expression() {
+	cout<<"--------------------Start test_expression()-------------------------\n\n";
 	vector<BaseRelation> brs {{"K", {{Dtype::Int, "k"}, {Dtype::Int, "d"}}},
 								{"E", {{Dtype::Int, "e"}, {Dtype::Int, "d"}}},
 								{"C", {{Dtype::Int, "e"}, {Dtype::String, "c"}}} };
@@ -44,4 +49,33 @@ void test_expression() {
 	for(int i=0; i<exp_k2d.num_goals(); i++) {
 		cout<<exp_k2d.goal_at(i).br->get_name()<<" "<<exp_k1d.goal_at(cm.at(i)).br->get_name()<<endl;
 	}
+}
+
+void test_dataframe() {
+	cout<<"--------------------Start test_dataframe()-------------------------\n\n";
+	vector<string> docs {{"long red ferrari on long road"}, {"long blue ferrari in long island"}};
+	vector<DataFrame::ColumnMetaData> colmds {{"k", Dtype::String}, {"d", Dtype::Int}, {"p", Dtype::Int}};
+	vector<vector<Data>> tuples;
+	int did = 0;
+	for(auto doc: docs) {
+		auto tokens = split(doc, " ");
+		for(uint i=0; i<tokens.size(); i++)
+			tuples.push_back(vector<Data>{Data(tokens[i]), Data(did), Data(i)});
+		did += 1;
+	}
+	DataFrame df(colmds, tuples);
+	DataFrame df1 = df;
+	cout<<df.show()<<endl;
+
+	df.select("k", Data("long"));
+	cout<<df.show()<<endl;
+
+	df.self_join("p", "d");
+	cout<<df.show()<<endl;
+
+	vector<DataFrame::ColumnMetaData> colmds2 {{"k_2", Dtype::String}, {"d_2", Dtype::Int}, {"p_2", Dtype::Int}};
+	DataFrame df2(colmds2, tuples);
+
+	df1.join(df2, vector<pair<string, string>>{{"k", "k_2"}, {"p", "p_2"}});
+	cout<<df1.show()<<endl;
 }
