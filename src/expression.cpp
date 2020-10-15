@@ -39,6 +39,10 @@ bool Expression::Symbol::operator==(const Expression::Symbol& symb) const {
 	else return var==symb.var;
 }
 
+bool Expression::Symbol::operator!=(const Expression::Symbol& symb) const {
+	return !(this->operator==(symb));
+}
+
 // bool Expression::Symbol::operator<(const Expression::Symbol& symb) const {
 // 	if(isconstant != symb.isconstant)
 // 		return isconstant < symb.isconstant;
@@ -140,17 +144,34 @@ Expression() {
 
 string Expression::show() const {
 	string result = name+"[";
-	for(auto boundhv: boundheadvars)
-		result += var2name.at(boundhv) +", ";
+	uint n=0;
+	for(auto boundhv: boundheadvars) {
+		result += var2name.at(boundhv);
+		n+=1;
+		if(n!=boundheadvars.size()) result += ", ";
+	}
 	result += "](";
-	for(auto freehv: freeheadvars)
-		result += var2name.at(freehv) +", ";
+	n=0;
+	for(auto freehv: freeheadvars) {
+		result += var2name.at(freehv);
+		n+=1;
+		if(n!=freeheadvars.size()) result += ", ";
+	}
 	result += ") :- ";
+	n=0;
 	for(auto goal: goals) {
 		result += goal.br->get_name()+"(";
-		for(auto symbol: goal.symbols)
-			result += (symbol.isconstant ? symbol.dt.show() : var2name.at(symbol.var))+", ";
-		result += "), ";
+		uint m=0;
+		for(auto symbol: goal.symbols) {
+			result += (symbol.isconstant ? symbol.dt.show() : var2name.at(symbol.var));
+			m+=1;
+			if(m!=goal.symbols.size())
+				result +=", ";
+		}
+		result += ")";
+		n+=1;
+		if(n!=goals.size())	
+			result += ", ";
 	}
 	result += "\n";
 	return result;
@@ -162,10 +183,13 @@ name(""), name2var(), var2name(), var2dtype(), goals(), boundheadvars(), freehea
 Expression Expression::subexpression(std::set<int> subset_goals) const {
 	Expression result;
 	result.name = name + "::{";
-
+	uint n=0;
 	for(auto pos: subset_goals) {
 		assert(pos>=0 && pos<(int)goals.size());
-		result.name += to_string(pos)+",";
+		result.name += to_string(pos);
+		n+= 1;
+		if(n!=subset_goals.size())
+			result.name+=",";
 		for(auto symbol: goals[pos].symbols) 
 			if(!symbol.isconstant) 
 				if(result.var2name.find(symbol.var)==result.var2name.end()) {
@@ -177,6 +201,8 @@ Expression Expression::subexpression(std::set<int> subset_goals) const {
 				}
 		result.goals.push_back(goals[pos]);
 	}
+	for(auto it=result.var2name.begin(); it!=result.var2name.end(); it++)
+		result.allvars.insert(it->first);
 
 	result.name+='}';
 	return result;
@@ -192,10 +218,18 @@ const set<int>& Expression::Expression::vars() const {
 	return allvars;
 }
 
+const set<int>& Expression::Expression::head_vars() const {
+	return headvars;
+}
+
 const Expression::Goal& Expression::goal_at(int pos) const {
 	return goals.at(pos);
 }
 
 int Expression::name_to_var(const std::string& nm) const {
 	return name2var.at(nm);
+}
+
+string Expression::var_to_name(int var) const {
+	return var2name.at(var);
 }

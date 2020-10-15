@@ -17,7 +17,7 @@ Following plan has weekly checkpoints. Please refer to the checkboxes to measure
 
 - [x] [October 11] Implement a simple dataframe class along with functions to execute selection, projection and join operations on it. This class will be used in the cost model to compute queries on sampled dataset in order to generate cost estimates. Eg:- say we have sub-sampled tables K, E and C. Then we can estimate the size of the output of the query "Q[k1, k2, c]\(d, e\):- K(k1, d), K(k2, d), E(e, d), C(e, c)" by running the query on the sub-sampled tables. We replace the bound head variables (k1, k2 and c) with randomly sampled constants and repeat the execution a set number of times to obtain expected number of tuples in a randomly generated query instance. 
 
-- [ ] [October 18] Identify and merge equivalent expressions. Given two expressions "E1[k1]\(d, e\):-K(k1, d), E(e, d)" and "E2[k2]\(d, e\):-K(k2, d), E(e, d)", identify that they are equivalent and give two containment maps for both side, {k1->k2, d->d, e->e} and {k2->k1, d->d, e->e}. To speed it up, first compare their signatures and only then run backtrack matching algorithm for finding containment maps.
+- [x] [October 18] Identify and merge equivalent expressions. Given two expressions "E1[k1]\(d, e\):-K(k1, d), E(e, d)" and "E2[k2]\(d, e\):-K(k2, d), E(e, d)", identify that they are equivalent and give two containment maps for both side, {k1->k2, d->d, e->e} and {k2->k1, d->d, e->e}. 
 
 - [ ] [October 25] Create classes to represent queries, indexes and view tuples. Then write code to compute the set of view tuples for a given set of candidate indexes. Use the definition 3.2 from the paper.
 

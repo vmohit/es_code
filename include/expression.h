@@ -20,7 +20,7 @@ public:
 		Symbol(const Data& data);
 		Symbol(int v);
 		bool operator==(const Symbol& symb) const;
-		//bool operator<(const Symbol& symb) const;
+		bool operator!=(const Symbol& symb) const;
 	};
 	struct Goal {
 		const BaseRelation* br;
@@ -45,7 +45,9 @@ public:
 	Expression subexpression(std::set<int> subset_goals) const;  //!< returns a subexpression made up of given subset of goals. It shares the variables with the original query
 	int num_goals() const;
 	int name_to_var(const std::string& nm) const; //!< for debugging
+	std::string var_to_name(int var) const;
 	const std::set<int>& vars() const;
+	const std::set<int>& head_vars() const;
 	const Goal& goal_at(int pos) const;
 private:
 	Expression(); //!< creates an empty expression

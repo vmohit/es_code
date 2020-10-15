@@ -13,6 +13,7 @@
 
 using namespace std;
 using namespace esutils;
+typedef Expression::Symbol Symbol;
 
 void test_expression();
 void test_dataframe();
@@ -20,7 +21,7 @@ void test_dataframe();
 int main() {
 	cout<<"Testing expression: \n\n";
 	test_expression();
-	test_dataframe();
+	//test_dataframe();
 	return 0;
 }
 
@@ -35,20 +36,16 @@ void test_expression() {
 	map<std::string, const BaseRelation*> name2br {{"K", &brs[0]}, {"E", &brs[1]}, {"C", &brs[2]}};
 	string query = "Qent[k1, k2](d, e) :- K(k1, d); K(k2, d); E(e, d); C(e, str_phone); E(int_3, d); E(int_4, d)";
 	Expression expr(query, name2br);
-	cout<<expr.show()<<endl;  // Qent[k1, k2, ](d, e, ) :- K(k1, d, ), K(k2, d, ), E(e, d, ), C(e, String[bs=0](phone), ), E(Int(3), d, ), E(Int(4), d, ),
+	cout<<expr.show()<<endl;  
 	
-	Expression exp_k2d = expr.subexpression(set<int>{4,1});
-	cout<<exp_k2d.show()<<endl;
+	Expression exp1 = expr.subexpression(set<int>{0, 2});
+	cout<<exp1.show()<<endl;
 	
-	Expression exp_k1d = expr.subexpression(set<int>{0,4});
-	cout<<exp_k1d.show()<<endl;
+	Expression exp2 = expr.subexpression(set<int>{1, 4});
+	cout<<exp2.show()<<endl;
 
-	ContainmentMap cm {&exp_k2d, &exp_k1d, {{exp_k2d.name_to_var("k2"), exp_k1d.name_to_var("k1")}, 
-					{exp_k2d.name_to_var("d"), exp_k1d.name_to_var("d")} } };
-
-	for(int i=0; i<exp_k2d.num_goals(); i++) {
-		cout<<exp_k2d.goal_at(i).br->get_name()<<" "<<exp_k1d.goal_at(cm.at(i)).br->get_name()<<endl;
-	}
+	cout<<find_containment_map(&exp1, &exp2).show()<<endl;
+	cout<<find_containment_map(&exp2, &exp1).show()<<endl;
 }
 
 void test_dataframe() {

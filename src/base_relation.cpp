@@ -38,7 +38,10 @@ Dtype BaseRelation::dtype_at(int pos) const {
 
 string BaseRelation::show() const {
 	string result = "[id: "+to_string(id)+"] "+name+"(";
-	for(uint col=0; col<columns.size(); col++) 
-		result += (columns[col].dtype==Dtype::Int ? "Int_": "String_") + columns[col].name+", ";
+	for(uint col=0; col<columns.size(); col++) {
+		result += (columns[col].dtype==Dtype::Int ? "Int_": "String_") + columns[col].name;
+		if(col+1!=columns.size())
+			result +=", ";
+	}
 	return result+")";
 }
