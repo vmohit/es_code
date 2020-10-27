@@ -1,4 +1,5 @@
 #include "base_relation.h"
+#include "data.h"
 
 #include <string>
 #include <vector>
@@ -9,7 +10,8 @@ using std::string;
 using std::vector;
 using std::map;
 using std::to_string;
-
+ 
+typedef DataFrame::ColumnMetaData ColumnMetaData;
 
 
 // functions of class BaseRelation
@@ -45,3 +47,13 @@ string BaseRelation::show() const {
 	}
 	return result+")";
 }
+
+vector<ColumnMetaData> BaseRelation::get_colmds(const string& cid_prefix) const {
+	vector<ColumnMetaData> result;
+	for(uint i=0; i<columns.size(); i++)
+		result.push_back(ColumnMetaData(cid_prefix+"_"+to_string(i), columns.at(i).dtype));
+	return result;
+}
+
+BaseRelation::Table::Table(const BaseRelation* br_arg, const std::string& cid_prefix) :
+br(br_arg), df(br_arg->get_colmds(cid_prefix), vector<vector<Data>>()) {}

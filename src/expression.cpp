@@ -11,6 +11,7 @@
 #include <set>
 #include <iostream>
 #include <cassert>
+#include <utility>
 
 using std::string;
 using std::vector;
@@ -22,6 +23,9 @@ using esutils::split;
 using esutils::left_padded_str;
 using std::cout;
 using std::endl;
+using std::make_pair;
+using std::pair;
+typedef DataFrame::ColumnMetaData ColumnMetaData;
 
 // functions of class Expression::Symbol
 
@@ -139,6 +143,8 @@ Expression() {
 
 	for(auto it=var2name.begin(); it!=var2name.end(); it++)
 		allvars.insert(it->first);
+
+	assert(goals.size()>0);
 }
 
 
@@ -181,6 +187,7 @@ Expression::Expression() :
 name(""), name2var(), var2name(), var2dtype(), goals(), boundheadvars(), freeheadvars(), headvars(), signature("") {}
 
 Expression Expression::subexpression(std::set<int> subset_goals) const {
+	assert(subset_goals.size()>0);
 	Expression result;
 	result.name = name + "::{";
 	uint n=0;
@@ -232,4 +239,73 @@ int Expression::name_to_var(const std::string& nm) const {
 
 string Expression::var_to_name(int var) const {
 	return var2name.at(var);
+}
+
+
+map<int, string> Expression::Table::execute_goal(DataFrame& result,
+			const Expression* expr, int gid, const BaseRelation::Table* table) {
+	result = table->df;
+	result.prepend_to_cids(to_string(gid));
+	map<int, string> var2cid;
+	map<int, string> pos2cid;
+	for(uint i=0; i<result.get_header().size(); i++) 
+		pos2cid[i]=result.get_header().at(i).cid;
+	for(uint i=0; i<expr->goals[gid].symbols.size(); i++) {
+		if(expr->goals[gid].symbols.at(i).isconstant)
+			result.select(pos2cid.at(i), expr->goals[gid].symbols.at(i).dt);
+		else {
+			auto var = expr->goals[gid].symbols.at(i).var;
+			if(var2cid.find(var)==var2cid.end())
+				var2cid[var] = pos2cid.at(i);
+			else
+				var2cid[var] = result.self_join(var2cid.at(var), pos2cid.at(i));
+		}
+	}
+	return var2cid;
+}
+
+Expression::Table::Table(const Expression* exp_arg, 
+	std::map<const BaseRelation*, 
+	const BaseRelation::Table*> br2table) 
+: exp(exp_arg), df(vector<ColumnMetaData>(), vector<vector<Data>>()){
+
+	auto empty_df=df;
+	auto allvar2cid = execute_goal(df, exp, 0, br2table.at(exp->goals.at(0).br));
+	set<int> remaining_gids;
+	for(uint i=1; i<exp->goals.size(); i++)
+		remaining_gids.insert(i);
+	while(!remaining_gids.empty()) {
+		bool done=false;
+		for(auto gid: remaining_gids) {
+			for(auto symbol: exp->goals.at(gid).symbols) {
+				if(!symbol.isconstant)
+					if(allvar2cid.find(symbol.var)!=allvar2cid.end()) {
+						DataFrame df_goal = empty_df;
+						auto var2cid = execute_goal(df_goal, exp, gid, br2table.at(exp->goals.at(gid).br));
+						vector<pair<string, string>> this2df;
+						for(auto item: var2cid) {
+							auto var=item.first;
+							if(allvar2cid.find(var)!=allvar2cid.end())
+								this2df.push_back(make_pair(allvar2cid.at(var), var2cid.at(var)));
+							else
+								allvar2cid[var] = var2cid[var];
+						}
+						df.join(df_goal, this2df);
+						remaining_gids.erase(gid);
+						done=true;
+						break;
+					}
+			}
+			if(done) break;
+		}
+		assert(done);
+	}
+
+	for(auto item: allvar2cid) {
+		auto var=item.first;
+		if(exp->headvars.find(var)==exp->headvars.end())
+			df.project_out(allvar2cid.at(var));
+		else
+			headvar2cid[var] = allvar2cid.at(var);
+	}
 }

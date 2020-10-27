@@ -23,15 +23,22 @@ using std::stringstream;
 using esutils::set_intersection_inplace;
 using esutils::set_intersection;
 
+
+DataFrame::ColumnMetaData::ColumnMetaData(const string& cid_arg, Dtype dtp)
+: cid(cid_arg), dtype(dtp) {}
+
+DataFrame::Column::Column(const DataFrame::ColumnMetaData& cmd_arg) 
+: cmd(cmd_arg){}
+
 DataFrame::DataFrame(const vector<DataFrame::ColumnMetaData>& colmds, 
 	const vector<vector<Data>>& tuples) {
-	for(uint i=0; i<colmds.size(); i++)
+	for(uint i=0; i<colmds.size(); i++) {
 		header.push_back(colmds.at(i));
-	cols.resize(header.size());
+		cols.push_back(Column(colmds.at(i)));
+	}
 	for(uint i=0; i<header.size(); i++) {
 		assert(cid2pos.find(header[i].cid) == cid2pos.end());
 		cid2pos[header[i].cid] = i;
-		cols[i].cmd = header[i];
 	}
 	for(const auto& tuple: tuples)
 		add_tuple(tuple);
@@ -137,6 +144,7 @@ string DataFrame::self_join(const string& col1, const string& col2) {
 
 
 void DataFrame::join(const DataFrame& df, const vector<pair<string, string>>& this2df) {
+	assert(this2df.size()>0);
 	set<pair<int, int>> final_matches;
 	set<string> dfcids;
 	for(const auto& ele: this2df)
@@ -192,9 +200,8 @@ void DataFrame::join(const DataFrame& df, const vector<pair<string, string>>& th
 	rows.clear();
 	maxrowid = 0;
 	
-	cols.resize(header.size());
 	for(uint i=0; i<header.size(); i++) 
-		cols[i].cmd = header[i];
+		cols.push_back(ColumnMetaData(header[i]));
 
 	for(const auto& tuple: tuples)
 		add_tuple(tuple);
@@ -223,4 +230,20 @@ string DataFrame::show() const {
 		}
 	}
 	return ss.str();
+}
+
+
+void DataFrame::prepend_to_cids(const std::string& prefix) {
+	map<string, int> new_cid2pos;
+	for(uint i=0; i<header.size(); i++) {
+		new_cid2pos[prefix + "_" + header[i].cid] = 
+			cid2pos[header[i].cid];
+		header[i].cid = prefix + "_" + header[i].cid;
+		cols[i].cmd.cid = prefix + "_" + cols[i].cmd.cid;
+	}
+	cid2pos = new_cid2pos;
+}
+
+const vector<DataFrame::ColumnMetaData>& DataFrame::get_header() const {
+	return header;
 }

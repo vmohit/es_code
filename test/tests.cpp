@@ -10,18 +10,26 @@
 #include <map>
 #include <set>
 #include <vector>
+#include <cstdlib>
+#include <ctime>
 
 using namespace std;
 using namespace esutils;
 typedef Expression::Symbol Symbol;
+typedef DataFrame::ColumnMetaData ColumnMetaData;
 
 void test_expression();
 void test_dataframe();
+void test_exp_execution();
 
 int main() {
 	cout<<"Testing expression: \n\n";
 	test_expression();
-	//test_dataframe();
+	cout<<"Testing dataframe: \n\n";
+	test_dataframe();
+	cout<<"Testing expression execution: \n\n";
+	test_exp_execution();
+
 	return 0;
 }
 
@@ -51,7 +59,7 @@ void test_expression() {
 void test_dataframe() {
 	cout<<"--------------------Start test_dataframe()-------------------------\n\n";
 	vector<string> docs {{"long red ferrari on long road"}, {"long blue ferrari in long island"}};
-	vector<DataFrame::ColumnMetaData> colmds {{"k", Dtype::String}, {"d", Dtype::Int}, {"p", Dtype::Int}};
+	vector<ColumnMetaData> colmds {{"k", Dtype::String}, {"d", Dtype::Int}, {"p", Dtype::Int}};
 	vector<vector<Data>> tuples;
 	int did = 0;
 	for(auto doc: docs) {
@@ -75,4 +83,47 @@ void test_dataframe() {
 
 	df1.join(df2, vector<pair<string, string>>{{"k", "k_2"}, {"p", "p_2"}});
 	cout<<df1.show()<<endl;
+}
+
+void test_exp_execution() {
+	cout<<"-------------------------------\n";
+	vector<BaseRelation> brs {{"K", {{Dtype::Int, "k"}, {Dtype::Int, "d"}}},
+								{"E", {{Dtype::Int, "e"}, {Dtype::Int, "d"}}},
+								{"C", {{Dtype::Int, "e"}, {Dtype::Int, "c"}}} };
+
+	srand (time(NULL));
+
+	BaseRelation::Table kd(&brs[0], "kd");
+	int Nk=3, Nd=3, Nkd=6;
+	for(int i=0; i<Nkd; i++)
+		kd.df.add_tuple(vector<Data>{rand()%Nk+1, 10+rand()%Nd+1});
+	cout<<kd.df.show()<<endl;
+
+	BaseRelation::Table ed(&brs[1], "ed");
+	int Ne=3, Ned=5;
+	for(int i=0; i<Ned; i++)
+		ed.df.add_tuple(vector<Data>{100+rand()%Ne+1, 10+rand()%Nd+1});
+	cout<<ed.df.show()<<endl;
+
+	BaseRelation::Table ec(&brs[2], "ec");
+	int Nc=2, Nec=4;
+	for(int i=0; i<Nec; i++)
+		ec.df.add_tuple(vector<Data>{100+rand()%Ne+1, 1000+rand()%Nc+1});
+	cout<<ec.df.show()<<endl;
+
+	map<const BaseRelation*, const BaseRelation::Table*> br2table {
+		{&brs[0], &kd}, {&brs[1], &ed}, {&brs[2], &ec}
+	};
+
+	map<std::string, const BaseRelation*> name2br {{"K", &brs[0]}, {"E", &brs[1]}, {"C", &brs[2]}};
+	string query = "Qent[k1, k2](e, d, c) :- K(k1, d); K(k2, d); E(e, d); C(e, c)";
+	Expression expr(query, name2br);
+	cout<<expr.show()<<endl;  
+
+	Expression::Table table(&expr, br2table);
+	for(auto item: table.headvar2cid) {
+		cout<<expr.var_to_name(item.first)<<": "<<item.second<<", ";
+	}
+	cout<<endl;
+	cout<<table.df.show()<<endl;
 }

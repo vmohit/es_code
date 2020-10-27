@@ -3,6 +3,8 @@
 
 #include "data.h"
 #include "base_relation.h"
+#include "dataframe.h"
+#include "utils.h"
 
 #include <vector>
 #include <string>
@@ -28,6 +30,19 @@ public:
 		Goal(const BaseRelation* brarg, std::vector<Symbol> symbs);
 		bool operator==(const Goal& goal) const;
 	};
+
+	/**A dataframe associated to an expression*/
+	class Table {
+	public:
+		const Expression* exp;
+		DataFrame df;
+		std::map<int, std::string> headvar2cid;
+		Table(const Expression* exp_arg, std::map<const BaseRelation*, 
+			const BaseRelation::Table*> br2table);
+	private:
+		std::map<int, std::string> execute_goal(DataFrame& result,
+			const Expression* exp_arg, int gid, const BaseRelation::Table* table);
+	};
 private:
 	std::string name;
 	std::map<std::string, int> name2var;
@@ -49,6 +64,7 @@ public:
 	const std::set<int>& vars() const;
 	const std::set<int>& head_vars() const;
 	const Goal& goal_at(int pos) const;
+
 private:
 	Expression(); //!< creates an empty expression
 };

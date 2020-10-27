@@ -13,11 +13,13 @@ public:
 	struct ColumnMetaData {
 		std::string cid; //!< unique column identifier passed by a client
 		Dtype dtype;
+		ColumnMetaData(const std::string& cid_arg, Dtype dtp);
 	};
 private:
 	struct Column {
 		ColumnMetaData cmd;
 		std::map<Data, std::set<int>> val2rowids;
+		Column(const ColumnMetaData& cmd_arg);
 	};
 	struct Row {
 		std::vector<Data> row;
@@ -38,6 +40,9 @@ public:
 	std::string self_join(const std::string& col1, const std::string& col2);  //!< returns the colid of joined result and projects out the redundant column
 	void join(const DataFrame& df, const std::vector<std::pair<std::string, std::string>>& this2df);  //!< joins df into this dataframe. Matched columns of df will be projected out in the output
 	
+	void prepend_to_cids(const std::string& prefix); //!< adds the given prefix to ids of each column
+	const std::vector<ColumnMetaData>& get_header() const;  //!< return a read-only copy of header
+
 	std::string show() const;  //!< show the dataframe for debugging
 };
 
