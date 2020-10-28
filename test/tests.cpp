@@ -3,6 +3,7 @@
 #include "data.h"
 #include "dataframe.h"
 #include "utils.h"
+#include "query.h"
 
 #include <tuple>
 #include <iostream>
@@ -21,14 +22,13 @@ typedef DataFrame::ColumnMetaData ColumnMetaData;
 void test_expression();
 void test_dataframe();
 void test_exp_execution();
+void test_viewtuple_construction();
 
 int main() {
-	cout<<"Testing expression: \n\n";
 	test_expression();
-	cout<<"Testing dataframe: \n\n";
 	test_dataframe();
-	cout<<"Testing expression execution: \n\n";
 	test_exp_execution();
+	test_viewtuple_construction();
 
 	return 0;
 }
@@ -86,7 +86,7 @@ void test_dataframe() {
 }
 
 void test_exp_execution() {
-	cout<<"-------------------------------\n";
+	cout<<"--------------------Start test_exp_execution()-------------------------\n\n";
 	vector<BaseRelation> brs {{"K", {{Dtype::Int, "k"}, {Dtype::Int, "d"}}},
 								{"E", {{Dtype::Int, "e"}, {Dtype::Int, "d"}}},
 								{"C", {{Dtype::Int, "e"}, {Dtype::Int, "c"}}} };
@@ -127,3 +127,46 @@ void test_exp_execution() {
 	cout<<endl;
 	cout<<table.df.show()<<endl;
 }
+
+void test_viewtuple_construction() {
+	cout<<"--------------------Start test_viewtuple_construction()-------------------------\n\n";
+	vector<BaseRelation> brs {{"K", {{Dtype::Int, "k"}, {Dtype::Int, "d"}}},
+								{"E", {{Dtype::Int, "e"}, {Dtype::Int, "d"}}},
+								{"C", {{Dtype::Int, "e"}, {Dtype::String, "c"}}} };
+	for(auto &br: brs)
+		cout<<br.show()<<endl;
+
+	map<std::string, const BaseRelation*> name2br {{"K", &brs[0]}, {"E", &brs[1]}, {"C", &brs[2]}};
+	string query_str = "Qent[k1, k2](e, d, c) :- K(k1, d); K(k2, d); E(e, d); C(e, c); C(e, phone_str)";
+	Expression query_expr(query_str, name2br);
+	Query query(query_expr);
+	cout<<query.expression().show()<<endl;  
+
+	string einv_str = "EINV[k](e, c) :- K(k, d); E(e, d); C(e, c)";
+	Expression einv_expr(einv_str, name2br);
+	Index einv(einv_expr);
+	cout<<einv.expression().show()<<endl; 
+
+	for(auto vt: query.get_view_tuples(einv))
+		cout<<vt.show()<<endl;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

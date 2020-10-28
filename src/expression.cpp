@@ -309,3 +309,7 @@ Expression::Table::Table(const Expression* exp_arg,
 			headvar2cid[var] = allvar2cid.at(var);
 	}
 }
+
+const string Expression::get_name() const {
+	return name;
+}

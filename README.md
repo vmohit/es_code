@@ -19,7 +19,7 @@ Following plan has weekly checkpoints. Please refer to the checkboxes to measure
 
 - [x] [October 18] Identify and merge equivalent expressions. Given two expressions "E1[k1]\(d, e\):-K(k1, d), E(e, d)" and "E2[k2]\(d, e\):-K(k2, d), E(e, d)", identify that they are equivalent and give two containment maps for both side, {k1->k2, d->d, e->e} and {k2->k1, d->d, e->e}. 
 
-- [ ] [October 25] Create classes to represent queries, indexes and view tuples. Then write code to compute the set of view tuples for a given set of candidate indexes. Use the definition 3.2 from the paper.
+- [x] [October 25] Create classes to represent queries, indexes and view tuples. Then write code to compute the set of view tuples for a given set of candidate indexes. Use the definition 3.2 from the paper.
 
 - [ ] [November 1] Write a backtracking based code to compute sub-cores for view tuple. Test it and make sure it scales well with the size of views. Create a class to represent query plans. Then write a test to check if a plan is complete or not by implementing backtracking algorithm for the exact cover problem.
 

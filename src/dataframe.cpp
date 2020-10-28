@@ -247,3 +247,14 @@ void DataFrame::prepend_to_cids(const std::string& prefix) {
 const vector<DataFrame::ColumnMetaData>& DataFrame::get_header() const {
 	return header;
 }
+
+vector<vector<Data>> DataFrame::get_rows() const {
+	vector<vector<Data>> result;
+	for(auto item: rows)
+		result.push_back(item.second.row);
+	return result;
+}
+
+int DataFrame::get_cid2pos(const std::string& cid) const {
+	return cid2pos.at(cid);
+}

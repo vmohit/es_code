@@ -42,6 +42,9 @@ public:
 	
 	void prepend_to_cids(const std::string& prefix); //!< adds the given prefix to ids of each column
 	const std::vector<ColumnMetaData>& get_header() const;  //!< return a read-only copy of header
+	
+	std::vector<std::vector<Data>> get_rows() const;
+	int get_cid2pos(const std::string& cid) const;
 
 	std::string show() const;  //!< show the dataframe for debugging
 };

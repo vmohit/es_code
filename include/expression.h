@@ -64,6 +64,7 @@ public:
 	const std::set<int>& vars() const;
 	const std::set<int>& head_vars() const;
 	const Goal& goal_at(int pos) const;
+	const std::string get_name() const;
 
 private:
 	Expression(); //!< creates an empty expression
