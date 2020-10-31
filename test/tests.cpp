@@ -23,13 +23,14 @@ void test_expression();
 void test_dataframe();
 void test_exp_execution();
 void test_viewtuple_construction();
+void test_subcores();
 
 int main() {
 	test_expression();
 	test_dataframe();
 	test_exp_execution();
 	test_viewtuple_construction();
-
+	test_subcores();
 	return 0;
 }
 
@@ -137,12 +138,12 @@ void test_viewtuple_construction() {
 		cout<<br.show()<<endl;
 
 	map<std::string, const BaseRelation*> name2br {{"K", &brs[0]}, {"E", &brs[1]}, {"C", &brs[2]}};
-	string query_str = "Qent[k1, k2](e, d, c) :- K(k1, d); K(k2, d); E(e, d); C(e, c); C(e, phone_str)";
+	string query_str = "Qent[k1, k2](e, c) :- K(k1, d); K(k2, d); E(e, d); C(e, c); C(e, str_phone)";
 	Expression query_expr(query_str, name2br);
 	Query query(query_expr);
 	cout<<query.expression().show()<<endl;  
 
-	string einv_str = "EINV[k](e, c) :- K(k, d); E(e, d); C(e, c)";
+	string einv_str = "EINV[k1, k2](e, c) :- K(k1, d); K(k2, d); E(e, d); C(e, c)";
 	Expression einv_expr(einv_str, name2br);
 	Index einv(einv_expr);
 	cout<<einv.expression().show()<<endl; 
@@ -151,7 +152,38 @@ void test_viewtuple_construction() {
 		cout<<vt.show()<<endl;
 }
 
+void test_subcores() {
+	cout<<"--------------------Start test_subcores()-------------------------\n\n";
+	vector<BaseRelation> brs {{"car", {{Dtype::Int, "Make"}, {Dtype::String, "Dealer"}}},
+								{"loc", {{Dtype::String, "Dealer"}, {Dtype::Int, "City"}}},
+								{"part", {{Dtype::Int, "Store"}, {Dtype::Int, "Make"}, {Dtype::Int, "City"}}} };
+	for(auto &br: brs)
+		cout<<br.show()<<endl;
 
+	map<std::string, const BaseRelation*> name2br {{"car", &brs[0]}, {"loc", &brs[1]}, {"part", &brs[2]}};
+	string query_str = "q1[S](C) :- car(M, str_anderson); loc(str_anderson, C); part(S, M, C)";
+	Expression query_expr(query_str, name2br);
+	Query query(query_expr);
+	cout<<query.expression().show()<<endl;  
+
+	vector<string> index_strs {
+		"v1[M](D, C) :- car(M, D); loc(D, C)",
+		"v2[S](M, C) :- part(S, M, C)",
+		"v3[](S) :- car(M, str_anderson); loc(str_anderson, C); part(S, M, C)",
+		"v4[M](D, C, S) :- car(M, D); loc(D, C); part(S, M, C)",
+		"v5[D](S, C) :- car(M, D); part(S, M, C)"
+	};
+	for(string index_str: index_strs) {
+		Expression index_expr(index_str, name2br);
+		Index index(index_expr);
+		cout<<"Index: ";
+		cout<<index.expression().show()<<endl<<endl; 
+
+		for(auto vt: query.get_view_tuples(index))
+			cout<<vt.show()<<endl;
+		cout<<endl<<endl;
+	}
+}
 
 
 

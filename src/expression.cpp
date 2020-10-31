@@ -145,6 +145,7 @@ Expression() {
 		allvars.insert(it->first);
 
 	assert(goals.size()>0);
+	compute_freevar2goals();
 }
 
 
@@ -212,6 +213,7 @@ Expression Expression::subexpression(std::set<int> subset_goals) const {
 		result.allvars.insert(it->first);
 
 	result.name+='}';
+	result.compute_freevar2goals();
 	return result;
 }
 
@@ -312,4 +314,20 @@ Expression::Table::Table(const Expression* exp_arg,
 
 const string Expression::get_name() const {
 	return name;
+}
+
+void Expression::compute_freevar2goals() {
+	for(uint gid=0; gid<goals.size(); gid++) {
+		for(auto symbol: goals[gid].symbols) {
+			if(!symbol.isconstant && (headvars.find(symbol.var)==headvars.end())) {
+				if(freevar2goals.find(symbol.var)==freevar2goals.end())
+					freevar2goals[symbol.var] = set<int>();
+				freevar2goals[symbol.var].insert(gid);
+			}
+		}
+	}
+}
+
+const set<int>& Expression::goals_containing(int freevar) const {
+	return freevar2goals.at(freevar);
 }

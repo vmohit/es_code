@@ -37,6 +37,9 @@ class ViewTuple {
 	const Query& query;
 	const Index& index;
 	std::map<int, Expression::Symbol> index2query;
+	std::set<std::set<int>> subcores;
+	void try_match(bool& match, std::set<int>& subcore,
+		std::set<int>& unmapped_goals, std::map<int, int>& mu);
 public:
 	ViewTuple(const Query& query_arg,
 		const Index& index_arg,

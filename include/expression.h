@@ -54,6 +54,8 @@ private:
 	std::set<int> headvars;
 	std::set<int> allvars;
 	std::string signature;
+	std::map<int, std::set<int>> freevar2goals; //!< maps a free variable to the set of goals in which it appears
+	void compute_freevar2goals();
 public:
 	Expression(std::string expr, const std::map<std::string, const BaseRelation*>& name2br);   //!< parse an expression from a string representation
 	std::string show() const;  //!< returns a string representation for debugging purposes
@@ -65,7 +67,7 @@ public:
 	const std::set<int>& head_vars() const;
 	const Goal& goal_at(int pos) const;
 	const std::string get_name() const;
-
+	const std::set<int>& goals_containing(int freevar) const;
 private:
 	Expression(); //!< creates an empty expression
 };

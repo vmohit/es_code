@@ -7,6 +7,8 @@
 #include <set>
 #include <vector>
 #include <list>
+#include <queue>
+#include <iostream>
 
 using std::map;
 using std::vector;
@@ -14,6 +16,9 @@ using std::set;
 using std::string;
 using std::to_string;
 using std::list;
+using std::queue;
+using std::cout;
+using std::endl;
 
 Query::Query(const Expression& exp_arg)
 : exp(exp_arg) {
@@ -88,11 +93,6 @@ const Expression& Index::expression() const {
 	return exp;
 }
 
-ViewTuple::ViewTuple(const Query& query_arg,
-		const Index& index_arg,
-		map<int, Expression::Symbol> index2query_arg) 
-: query(query_arg), index(index_arg),
-index2query(index2query_arg) {}
 
 string ViewTuple::show() const {
 	string result=index.expression().get_name();
@@ -109,6 +109,112 @@ string ViewTuple::show() const {
 		if(i!=index.expression().head_vars().size())
 			result += ", ";
 	}
-	result += ")";
+	result += ") -> subcores: {";
+	uint j=0;
+	for(auto subcore: subcores) {
+		result += "{";
+		uint i=0;
+		for(uint gid: subcore)
+			result += to_string(gid)+(++i == subcore.size() ? "}":", ");
+		j++;
+		if(j!=subcores.size())
+			result+=", ";
+	}
+	result += "}";
 	return result;
+}
+
+
+
+ViewTuple::ViewTuple(const Query& query_arg,
+		const Index& index_arg,
+		map<int, Expression::Symbol> index2query_arg) 
+: query(query_arg), index(index_arg),
+index2query(index2query_arg) {
+	set<int> unexplored_goals;
+	for(int gid=0; gid<query.expression().num_goals(); gid++)
+		unexplored_goals.insert(gid);
+	for(int gid=0; gid<query.expression().num_goals(); gid++) {
+		if(unexplored_goals.find(gid)!=unexplored_goals.end()) {
+			set<int> subcore;
+			set<int> unmapped_goals;
+			unmapped_goals.insert(gid);
+			map<int, int> mu;
+			bool match=false;
+			try_match(match, subcore, unmapped_goals, mu);
+			if(match) 
+				subcores.insert(subcore);
+			for(auto id: subcore)
+				unexplored_goals.erase(id);
+		}
+	}
+}
+
+
+
+void ViewTuple::try_match(bool& match, set<int>& subcore,
+	set<int>& unmapped_goals, map<int, int>& mu) {
+	if(unmapped_goals.empty()) {
+		match = true;
+		return;
+	}
+	int q_gid = *(unmapped_goals.begin());
+	unmapped_goals.erase(q_gid);
+	subcore.insert(q_gid);
+	for(int i_gid=0; i_gid<index.expression().num_goals(); i_gid++) {
+		if(query.expression().goal_at(q_gid).br
+			==index.expression().goal_at(i_gid).br) {
+			set<int> newkeys;
+			set<int> newgoals;
+			const auto& q_symbols = query.expression().goal_at(q_gid).symbols;
+			const auto& i_symbols = index.expression().goal_at(i_gid).symbols;
+			bool flag=true;
+			for(uint i=0; i<q_symbols.size(); i++) {
+				if(q_symbols.at(i).isconstant) {
+					if(i_symbols.at(i)!=q_symbols.at(i) &&
+						(index2query.find(i_symbols.at(i).var)==index2query.end() ? 
+							true: index2query.at(i_symbols.at(i).var)!=q_symbols.at(i))) {
+						flag = false;
+						break;
+					}
+				}
+				else {
+					if(query.expression().head_vars().find(q_symbols.at(i).var) 
+						!= query.expression().head_vars().end())  {
+						if(index2query.find(i_symbols.at(i).var)!=index2query.end() ?
+							index2query.at(i_symbols.at(i).var)!=q_symbols.at(i) : true) {
+								flag = false;
+								break;
+						}
+					}
+					else {
+						if(mu.find(q_symbols.at(i).var)==mu.end()) {
+							newkeys.insert(q_symbols.at(i).var);
+							mu[q_symbols.at(i).var] = i_symbols.at(i).var;
+						}
+						if(mu.at(q_symbols.at(i).var)!=i_symbols.at(i).var) {
+							flag=false;
+							break;
+						}
+						if(index.expression().head_vars().find(i_symbols.at(i).var) 
+							== index.expression().head_vars().end())
+							for(int new_q_gid: query.expression().goals_containing(q_symbols.at(i).var))
+								if(subcore.find(new_q_gid)==subcore.end() 
+									&& unmapped_goals.find(new_q_gid)==unmapped_goals.end())
+									newgoals.insert(new_q_gid);
+					}
+				}
+			}
+			if(flag) {
+				for(int goal: newgoals)
+					unmapped_goals.insert(goal);
+				try_match(match, subcore, unmapped_goals, mu);
+				if(match) return;
+				for(int goal: newgoals)
+					unmapped_goals.erase(goal);
+			}
+			for(int key: newkeys)
+				mu.erase(key);
+		}
+	}
 }
