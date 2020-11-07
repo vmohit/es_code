@@ -23,6 +23,8 @@ private:
 	};
 	struct Row {
 		std::vector<Data> row;
+		bool operator<(const Row& r) const;
+		bool operator>(const Row& r) const;
 	};
 	std::vector<ColumnMetaData> header;
 	std::map<std::string, int> cid2pos;
@@ -45,6 +47,8 @@ public:
 	
 	std::vector<std::vector<Data>> get_rows() const;
 	int get_cid2pos(const std::string& cid) const;
+
+	std::set<std::vector<Data>> get_unique_rows() const;
 
 	std::string show() const;  //!< show the dataframe for debugging
 };

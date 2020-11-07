@@ -31,6 +31,7 @@ public:
 	// Operators
 	bool operator!=(const Data& dt) const;
 	bool operator<(const Data& dt) const;
+	bool operator>(const Data& dt) const;
 	bool operator==(const Data& dt) const;
 };
 

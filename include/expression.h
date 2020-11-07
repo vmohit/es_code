@@ -54,12 +54,14 @@ private:
 	std::set<int> headvars;
 	std::set<int> allvars;
 	std::string signature;
-	std::map<int, std::set<int>> freevar2goals; //!< maps a free variable to the set of goals in which it appears
-	void compute_freevar2goals();
+	std::string sketch;
+	std::map<int, std::set<int>> var2goals; //!< maps a variable to the set of goals in which it appears
+	void compute_extrafeatures();
+	void compute_sketch();
 public:
 	Expression(std::string expr, const std::map<std::string, const BaseRelation*>& name2br);   //!< parse an expression from a string representation
 	std::string show() const;  //!< returns a string representation for debugging purposes
-	Expression subexpression(std::set<int> subset_goals) const;  //!< returns a subexpression made up of given subset of goals. It shares the variables with the original query
+	Expression subexpression(const std::set<int>& subset_goals) const;  //!< returns a subexpression made up of given subset of goals. It shares the variables with the original query
 	int num_goals() const;
 	int name_to_var(const std::string& nm) const; //!< for debugging
 	std::string var_to_name(int var) const;
@@ -67,7 +69,13 @@ public:
 	const std::set<int>& head_vars() const;
 	const Goal& goal_at(int pos) const;
 	const std::string get_name() const;
-	const std::set<int>& goals_containing(int freevar) const;
+	const std::set<int>& goals_containing(int var) const;
+	bool connected(const std::set<int>& subset_goals) const; //!< returns true if the subset of goals are connected via joins
+	const std::string& get_sketch() const;
+	void drop_headvar(int headvar); 
+	void make_headvar_bound(int headvar);
+	bool is_free_headvar(int var) const;
+	bool is_bound_headvar(int var) const;
 private:
 	Expression(); //!< creates an empty expression
 };

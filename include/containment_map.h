@@ -26,4 +26,6 @@ public:
 
 ContainmentMap find_containment_map(const Expression* src_exp, const Expression* dest_exp);
 
+bool isomorphic(const Expression* exp1, const Expression* exp2);
+
 #endif

@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <map>
 #include <set>
+#include <queue>
 #include <iostream>
 #include <cassert>
 #include <utility>
@@ -20,6 +21,7 @@ using std::stoi;
 using std::map;
 using std::set;
 using esutils::split;
+using std::queue;
 using esutils::left_padded_str;
 using std::cout;
 using std::endl;
@@ -145,7 +147,8 @@ Expression() {
 		allvars.insert(it->first);
 
 	assert(goals.size()>0);
-	compute_freevar2goals();
+
+	compute_extrafeatures();
 }
 
 
@@ -187,7 +190,7 @@ string Expression::show() const {
 Expression::Expression() :
 name(""), name2var(), var2name(), var2dtype(), goals(), boundheadvars(), freeheadvars(), headvars(), signature("") {}
 
-Expression Expression::subexpression(std::set<int> subset_goals) const {
+Expression Expression::subexpression(const std::set<int>& subset_goals) const {
 	assert(subset_goals.size()>0);
 	Expression result;
 	result.name = name + "::{";
@@ -213,7 +216,7 @@ Expression Expression::subexpression(std::set<int> subset_goals) const {
 		result.allvars.insert(it->first);
 
 	result.name+='}';
-	result.compute_freevar2goals();
+	result.compute_extrafeatures();
 	return result;
 }
 
@@ -316,18 +319,101 @@ const string Expression::get_name() const {
 	return name;
 }
 
-void Expression::compute_freevar2goals() {
+void Expression::compute_extrafeatures() {
 	for(uint gid=0; gid<goals.size(); gid++) {
 		for(auto symbol: goals[gid].symbols) {
-			if(!symbol.isconstant && (headvars.find(symbol.var)==headvars.end())) {
-				if(freevar2goals.find(symbol.var)==freevar2goals.end())
-					freevar2goals[symbol.var] = set<int>();
-				freevar2goals[symbol.var].insert(gid);
+			if(!symbol.isconstant) {
+				if(var2goals.find(symbol.var)==var2goals.end())
+					var2goals[symbol.var] = set<int>();
+				var2goals[symbol.var].insert(gid);
 			}
 		}
 	}
+
+	compute_sketch();
 }
 
-const set<int>& Expression::goals_containing(int freevar) const {
-	return freevar2goals.at(freevar);
+void Expression::compute_sketch() {
+	sketch = "{"+to_string(headvars.size())+"}, {";
+	set<string> br_names;
+	int i=0;
+	for(uint gid=0; gid<goals.size(); gid++) {
+		br_names.insert(goals[gid].br->get_name());
+		for(auto symbol: goals[gid].symbols) {
+			if(symbol.isconstant) {
+				if(i>0)
+					sketch += ", " + symbol.dt.show();
+				else
+					sketch += symbol.dt.show();
+				i++;
+			}
+		}
+	}	
+	sketch += "}, {";
+	i=0;
+	for(auto br_name: br_names) {
+		if(i>0)	
+			sketch += ", "+br_name;
+		else
+			sketch += br_name;
+		i++;
+	}
+	sketch += "}";
+}
+
+const set<int>& Expression::goals_containing(int var) const {
+	return var2goals.at(var);
+}
+
+bool Expression::connected(const set<int>& subset_goals) const {
+	if(subset_goals.size()==0) return false;
+	set<int> uncovered_goals = subset_goals;
+	queue<int> gids;
+	gids.push(*(uncovered_goals.begin()));
+	uncovered_goals.erase(uncovered_goals.begin());
+	while(!uncovered_goals.empty()) {
+		if(gids.empty()) return false;
+		int gid = gids.front();
+		gids.pop();
+		for(auto symbol: goals.at(gid).symbols) {
+			if(!symbol.isconstant) {
+				for(int cgid: goals_containing(symbol.var)) {
+					if(uncovered_goals.find(cgid)!=uncovered_goals.end()) {
+						uncovered_goals.erase(cgid);
+						gids.push(cgid);
+					}
+				}
+			}
+		}
+	}
+	return true;
+}
+
+const string& Expression::get_sketch() const {
+	return sketch;
+}
+
+void Expression::drop_headvar(int headvar) {
+	assert(headvars.find(headvar)!=headvars.end());
+	assert(headvars.size()>1);
+	headvars.erase(headvar);
+	if(freeheadvars.find(headvar)!=freeheadvars.end())
+		freeheadvars.erase(headvar);
+	if(boundheadvars.find(headvar)!=boundheadvars.end())
+		boundheadvars.erase(headvar);
+	compute_sketch();
+}
+
+void Expression::make_headvar_bound(int headvar) {
+	assert(freeheadvars.find(headvar)!=freeheadvars.end());
+	freeheadvars.erase(headvar);
+	boundheadvars.insert(headvar);
+}
+
+bool Expression::is_free_headvar(int var) const {
+	return freeheadvars.find(var)!=freeheadvars.end();
+}
+
+bool Expression::is_bound_headvar(int var) const {
+	return boundheadvars.find(var)!=boundheadvars.end();
 }

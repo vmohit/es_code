@@ -24,6 +24,20 @@ using esutils::set_intersection_inplace;
 using esutils::set_intersection;
 
 
+bool DataFrame::Row::operator<(const DataFrame::Row& r) const {
+	if(row.size()!=r.row.size()) return row.size()<r.row.size();
+	for(uint i=0; i<row.size(); i++)
+		if(row[i]!=r.row[i]) return row[i]<r.row[i];
+	return false;
+}
+
+bool DataFrame::Row::operator>(const DataFrame::Row& r) const {
+	if(row.size()!=r.row.size()) return row.size()>r.row.size();
+	for(uint i=0; i<row.size(); i++)
+		if(row[i]!=r.row[i]) return row[i]>r.row[i];
+	return false;
+}
+
 DataFrame::ColumnMetaData::ColumnMetaData(const string& cid_arg, Dtype dtp)
 : cid(cid_arg), dtype(dtp) {}
 
@@ -255,6 +269,16 @@ vector<vector<Data>> DataFrame::get_rows() const {
 	return result;
 }
 
-int DataFrame::get_cid2pos(const std::string& cid) const {
+int DataFrame::get_cid2pos(const string& cid) const {
 	return cid2pos.at(cid);
+}
+
+set<vector<Data>> DataFrame::get_unique_rows() const {
+	set<Row> result;
+	for(auto& item: rows)
+		result.insert(item.second);
+	set<vector<Data>> ret_result;
+	for(auto& item: result)
+		ret_result.insert(item.row);
+	return ret_result;
 }

@@ -23,10 +23,10 @@ string Data::show(int verbose /*=0*/) const{
 	string result = "";
 	switch (dtype) { 
 	case Dtype::String: 
-		result.append("String[bs="+to_string(int_val)+"]("+str_val+")");
+		result.append("str_"+str_val);
 		break; 
 	case Dtype::Int: 
-		result.append("Int("+to_string(int_val)+")");
+		result.append("int_"+to_string(int_val));
 		break;
 	default:
 		perror("ERROR: unsupported datatype");   
@@ -69,6 +69,16 @@ bool Data::operator<(const Data& dt) const {
 			return int_val<dt.int_val;
 		else
 			return (str_val.compare(dt.str_val)<0);
+}
+
+bool Data::operator>(const Data& dt) const {
+	if(dtype!=dt.dtype)
+		return (dtype==Dtype::String ? false : true);
+	else
+		if(dtype==Dtype::Int)
+			return int_val>dt.int_val;
+		else
+			return (str_val.compare(dt.str_val)>0);
 }
 
 bool Data::operator==(const Data& dt) const {

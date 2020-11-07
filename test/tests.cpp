@@ -4,6 +4,7 @@
 #include "dataframe.h"
 #include "utils.h"
 #include "query.h"
+#include "application.h"
 
 #include <tuple>
 #include <iostream>
@@ -24,6 +25,7 @@ void test_dataframe();
 void test_exp_execution();
 void test_viewtuple_construction();
 void test_subcores();
+void test_candidate_generation();
 
 int main() {
 	test_expression();
@@ -31,6 +33,7 @@ int main() {
 	test_exp_execution();
 	test_viewtuple_construction();
 	test_subcores();
+	test_candidate_generation();
 	return 0;
 }
 
@@ -43,9 +46,13 @@ void test_expression() {
 		cout<<br.show()<<endl;
 
 	map<std::string, const BaseRelation*> name2br {{"K", &brs[0]}, {"E", &brs[1]}, {"C", &brs[2]}};
-	string query = "Qent[k1, k2](d, e) :- K(k1, d); K(k2, d); E(e, d); C(e, str_phone); E(int_3, d); E(int_4, d)";
+	string query = "Qent[k1, k2](e) :- K(k1, d); K(k2, d); E(e, d); C(e, str_phone); E(int_3, d); E(int_4, d)";
 	Expression expr(query, name2br);
 	cout<<expr.show()<<endl;  
+
+	cout<<expr.get_sketch()<<endl;  
+	cout<<expr.connected(set<int>{0, 1, 2})<<" "<<expr.connected(set<int>{0, 3})<<endl;
+	cout<<expr.subexpression(set<int>{0, 1, 2}).get_sketch()<<endl;
 	
 	Expression exp1 = expr.subexpression(set<int>{0, 2});
 	cout<<exp1.show()<<endl;
@@ -119,7 +126,8 @@ void test_exp_execution() {
 	map<std::string, const BaseRelation*> name2br {{"K", &brs[0]}, {"E", &brs[1]}, {"C", &brs[2]}};
 	string query = "Qent[k1, k2](e, d, c) :- K(k1, d); K(k2, d); E(e, d); C(e, c)";
 	Expression expr(query, name2br);
-	cout<<expr.show()<<endl;  
+
+	cout<<expr.show()<<endl;
 
 	Expression::Table table(&expr, br2table);
 	for(auto item: table.headvar2cid) {
@@ -185,7 +193,22 @@ void test_subcores() {
 	}
 }
 
+void test_candidate_generation() {
+	cout<<"--------------------Start test_candidate_generation()-------------------------\n\n";
+	vector<BaseRelation> brs {{"K", {{Dtype::Int, "k"}, {Dtype::Int, "d"}}},
+								{"E", {{Dtype::Int, "e"}, {Dtype::Int, "d"}}},
+								{"C", {{Dtype::Int, "e"}, {Dtype::String, "c"}}} };
+	for(auto &br: brs)
+		cout<<br.show()<<endl;
 
+	map<std::string, const BaseRelation*> name2br {{"K", &brs[0]}, {"E", &brs[1]}, {"C", &brs[2]}};
+	string query = "Qent[k1, k2](d) :- K(k1, d); K(k2, d); E(e, d); C(e, str_phone); E(int_3, d); E(int_4, d)";
+	Expression expr(query, name2br);
+	cout<<expr.show()<<endl;  
+
+	Application app(vector<Query>{Query(expr)}, 3);
+	app.show_candidates();
+}
 
 
 

@@ -72,7 +72,7 @@ const Expression& Query::expression() const {
 list<ViewTuple> Query::get_view_tuples(const Index& index) const {
 	list<ViewTuple> result;
 	Expression::Table vts(&index.expression(), br2table);
-	for(auto row: vts.df.get_rows()) {
+	for(auto row: vts.df.get_unique_rows()) {
 		map<int, Expression::Symbol> index2query;
 		for(auto headvar: index.expression().head_vars()) {
 			Data dt = row[vts.df.get_cid2pos(vts.headvar2cid.at(headvar))];

@@ -105,6 +105,13 @@ bool containment_map_exists(const Expression* src_exp, const Expression* dest_ex
 						}
 					}
 					else {
+						if((src_exp->is_free_headvar(src_goal.symbols.at(i).var) && 
+							!dest_exp->is_free_headvar(dest_goal.symbols.at(i).var)) ||
+							(src_exp->is_bound_headvar(src_goal.symbols.at(i).var) && 
+							!dest_exp->is_bound_headvar(dest_goal.symbols.at(i).var))) {
+							match=false;
+							break;
+						}
 						var2symb.emplace(src_goal.symbols.at(i).var, dest_goal.symbols.at(i));
 						newly_mapped_vars.insert(src_goal.symbols.at(i).var);
 					}
@@ -131,4 +138,9 @@ ContainmentMap find_containment_map(const Expression* src_exp, const Expression*
 		return ContainmentMap(src_exp, dest_exp, var2symb);
 	else
 		return ContainmentMap(NULL, NULL, map<int, Expression::Symbol>());
+}
+
+bool isomorphic(const Expression* exp1, const Expression* exp2) {
+	return ((!find_containment_map(exp1, exp2).empty()) &&
+		(!find_containment_map(exp2, exp1).empty()));
 }
