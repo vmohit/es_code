@@ -53,11 +53,15 @@ private:
 	std::set<int> freeheadvars;
 	std::set<int> headvars;
 	std::set<int> allvars;
-	std::string signature;
 	std::string sketch;
 	std::map<int, std::set<int>> var2goals; //!< maps a variable to the set of goals in which it appears
+	std::string join_merge_sketch;
+
 	void compute_extrafeatures();
 	void compute_sketch();
+	bool try_merge(const Expression& exp, esutils::oto_map<int, int>& g2g,
+		esutils::oto_map<int, int>& sv2sv) const;
+	int add_new_var(char code, Dtype dtp, std::string name); //!< 'h', 'f' for head or free
 public:
 	Expression(std::string expr, const std::map<std::string, const BaseRelation*>& name2br);   //!< parse an expression from a string representation
 	std::string show() const;  //!< returns a string representation for debugging purposes
@@ -76,6 +80,10 @@ public:
 	void make_headvar_bound(int headvar);
 	bool is_free_headvar(int var) const;
 	bool is_bound_headvar(int var) const;
+
+	const std::string& get_join_merge_sketch() const;
+	bool empty() const;
+	Expression merge_with(const Expression& exp) const;
 private:
 	Expression(); //!< creates an empty expression
 };

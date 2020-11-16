@@ -6,6 +6,8 @@
 
 #include <vector>
 #include <iostream>
+#include <set>
+#include <utility>
 
 using std::vector;
 using esutils::generate_subsets;
@@ -20,6 +22,7 @@ Application::Application(const vector<Query>& workload, int k) {
 }
 
 void Application::generate_candidates() {
+	// generate all subexpressions of every query to get an initial set of candidate index
 	for(auto& query: queries) {
 		for(int k=1; k<=max_num_goals_index && k<=query.expression().num_goals(); k++) {
 			for(auto& subset: generate_subsets(
@@ -43,6 +46,32 @@ void Application::generate_candidates() {
 		}
 	}
 
+	// merge candidates with same join structure to generate more candidates
+	auto it=indexes.begin();
+	while(it!=indexes.end()) {
+		for(auto it2=indexes.begin(); it2!=it; it2++) {
+			if(it->expression().get_join_merge_sketch()==it2->expression().get_join_merge_sketch()) {
+				Expression exp=it->expression().merge_with(it2->expression());
+				if(!exp.empty()) {
+					bool match=false;
+					for(auto& index: indexes) {
+						if(index.expression().get_sketch()
+							==exp.get_sketch()) {
+							if(isomorphic(&index.expression(), &exp)) {
+								match = true;
+								break;
+							}
+						}
+					}
+					if(!match)
+						indexes.push_back(Index(exp));
+				}
+			}
+		}
+		it++;
+	}
+
+	// drop a subset of head variables from each candidate to generate more candidates
 	int N=indexes.size();
 	for(auto index=indexes.begin(); N>0; index++, N--) {
 		int num_headvars = index->expression().head_vars().size();
@@ -70,6 +99,7 @@ void Application::generate_candidates() {
 		}
 	}
 
+	// move a subset of free headvars to bound headvars
 	N=indexes.size();
 	for(auto index=indexes.begin(); N>0; index++, N--) {
 		int num_headvars = index->expression().head_vars().size();
@@ -97,6 +127,7 @@ void Application::generate_candidates() {
 		}
 	}
 
+	// generate view tuples for all the candidates index generated 
 	for(auto& query: queries) {
 		for(auto& index: indexes) {
 			for(auto& vt: query.get_view_tuples(index)) {

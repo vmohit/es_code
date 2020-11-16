@@ -83,11 +83,11 @@ namespace esutils {
 		bool find_inv(const R& right) const {
 			return backward.find(right)!=backward.end();
 		} 
-		R at(const L& left) const {
+		const R& at(const L& left) const {
 			assert(forward.find(left)!=forward.end());
 			return forward.at(left);
 		} 
-		L at_inv(const R& right) const {
+		const L& at_inv(const R& right) const {
 			assert(backward.find(right)!=backward.end());
 			return backward.at(right);
 		} 
@@ -102,6 +102,9 @@ namespace esutils {
 				forward.erase(backward.at(right));
 				backward.erase(right);
 			}
+		}
+		uint size() const {
+			return forward.size();
 		}
 	};
 }

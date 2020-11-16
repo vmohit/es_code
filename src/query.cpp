@@ -22,6 +22,7 @@ using std::endl;
 
 Query::Query(const Expression& exp_arg)
 : exp(exp_arg) {
+	assert(!exp.empty());
 	map<const BaseRelation*, BaseRelation::Table*> br2tab;
 	map<int, Data> var2const;
 	int maxconst=0;
@@ -87,7 +88,9 @@ list<ViewTuple> Query::get_view_tuples(const Index& index) const {
 }
 
 Index::Index(const Expression& exp_arg)
-: exp(exp_arg) {}
+: exp(exp_arg) {
+	assert(!exp.empty());
+}
 
 const Expression& Index::expression() const {
 	return exp;

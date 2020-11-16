@@ -62,6 +62,35 @@ void test_expression() {
 
 	cout<<find_containment_map(&exp1, &exp2).show()<<endl;
 	cout<<find_containment_map(&exp2, &exp1).show()<<endl;
+
+	cout<<"\n\nTesting join merge of expressions:\n\n";
+
+	vector<BaseRelation> brs_2 {{"K", {{Dtype::Int, "k"}, {Dtype::Int, "d"}}},
+								{"R", {{Dtype::Int, "k"}, {Dtype::Int, "d"}}},
+								{"E", {{Dtype::Int, "e"}, {Dtype::Int, "d"}}},
+								{"C", {{Dtype::Int, "e"}, {Dtype::String, "c"}}},
+								{"T", {{Dtype::Int, "e"}, {Dtype::String, "c"}}},
+								{"F", {{Dtype::Int, "d"}, {Dtype::Int, "f"}}} };
+	for(auto &br: brs_2)
+		cout<<br.show()<<endl;
+
+	map<std::string, const BaseRelation*> name2br_2 {{"K", &brs_2[0]}, {"R", &brs_2[1]}, {"E", &brs_2[2]},
+													{"C", &brs_2[3]}, {"T", &brs_2[4]}, {"F", &brs_2[5]}};
+	string E1 = "E1[](k1, d, e, f1) :- E(int_3, d); K(k1, d); R(k2, d); E(e, d); C(e, str_phone); T(e, str_email); F(d, f1)";
+	exp1 = Expression(E1, name2br_2);
+	cout<<endl<<exp1.show();
+	cout<<exp1.get_join_merge_sketch()<<endl;
+
+	string E2 = "E2[](d, e, c3) :- K(int_1, d); E(int_3, d); R(int_2, d); E(e, d); C(e, c); T(e, c3); F(d, f2)";
+	exp2 = Expression(E2, name2br_2);
+	cout<<endl<<exp2.show();
+	cout<<exp2.get_join_merge_sketch()<<endl;
+
+	if(exp1.get_join_merge_sketch()==exp2.get_join_merge_sketch()) 
+		cout<<endl<<exp2.merge_with(exp1).show()
+			<<"\nEmpty: "<<exp2.merge_with(exp1).empty()<<endl;
+	else
+		cout<<"join merge sketches don't match\n";
 }
 
 void test_dataframe() {
@@ -202,7 +231,7 @@ void test_candidate_generation() {
 		cout<<br.show()<<endl;
 
 	map<std::string, const BaseRelation*> name2br {{"K", &brs[0]}, {"E", &brs[1]}, {"C", &brs[2]}};
-	string query = "Qent[k1, k2](d) :- K(k1, d); K(k2, d); E(e, d); C(e, str_phone); E(int_3, d); E(int_4, d)";
+	string query = "Qent[k1, k2](d, e) :- K(k1, d); K(k2, d); E(e, d); C(e, str_phone); E(int_3, d); E(int_4, d)";
 	Expression expr(query, name2br);
 	cout<<expr.show()<<endl;  
 

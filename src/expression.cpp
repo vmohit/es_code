@@ -23,6 +23,7 @@ using std::set;
 using esutils::split;
 using std::queue;
 using esutils::left_padded_str;
+using esutils::oto_map;
 using std::cout;
 using std::endl;
 using std::make_pair;
@@ -188,7 +189,7 @@ string Expression::show() const {
 }
 
 Expression::Expression() :
-name(""), name2var(), var2name(), var2dtype(), goals(), boundheadvars(), freeheadvars(), headvars(), signature("") {}
+name(""), name2var(), var2name(), var2dtype(), goals(), boundheadvars(), freeheadvars(), headvars() {}
 
 Expression Expression::subexpression(const std::set<int>& subset_goals) const {
 	assert(subset_goals.size()>0);
@@ -320,6 +321,10 @@ const string Expression::get_name() const {
 }
 
 void Expression::compute_extrafeatures() {
+	var2goals.clear();
+	sketch = "";
+	join_merge_sketch = "";
+
 	for(uint gid=0; gid<goals.size(); gid++) {
 		for(auto symbol: goals[gid].symbols) {
 			if(!symbol.isconstant) {
@@ -331,6 +336,35 @@ void Expression::compute_extrafeatures() {
 	}
 
 	compute_sketch();
+
+	// computing join_merge_sketch
+	map<string, int> br_name2count;
+	map<int, int> var2num_occurences;
+	for(uint gid=0; gid<goals.size(); gid++) {
+		auto br_name = goals[gid].br->get_name();
+		if(br_name2count.find(br_name)==br_name2count.end())
+			br_name2count[br_name] = 0;
+		br_name2count[br_name] += 1;
+		for(auto symbol: goals[gid].symbols) 
+			if(!symbol.isconstant) {
+				if(var2num_occurences.find(symbol.var)==var2num_occurences.end())
+					var2num_occurences[symbol.var] = 0;
+				var2num_occurences[symbol.var] += 1;
+			}
+	}
+	join_merge_sketch = "{";
+	uint i=0;
+	for(auto it=br_name2count.begin(); it!=br_name2count.end(); it++) {
+		join_merge_sketch += it->first + ": " + to_string(it->second);
+		i++;
+		if(i!=br_name2count.size())
+			join_merge_sketch += ", ";
+	}
+	join_merge_sketch += "}, {";
+	for(auto it=var2num_occurences.begin(); it!=var2num_occurences.end(); it++) 
+		if(it->second>1)
+			join_merge_sketch += to_string(it->second)+" ";
+	join_merge_sketch += "}";
 }
 
 void Expression::compute_sketch() {
@@ -416,4 +450,113 @@ bool Expression::is_free_headvar(int var) const {
 
 bool Expression::is_bound_headvar(int var) const {
 	return boundheadvars.find(var)!=boundheadvars.end();
+}
+
+const string& Expression::get_join_merge_sketch() const {
+	return join_merge_sketch;
+}
+
+bool Expression::empty() const {
+	return goals.size()==0;
+}
+
+
+bool Expression::try_merge(const Expression& exp, oto_map<int, int>& g2g,
+		oto_map<int, int>& jv2jv) const {
+	if(g2g.size()==goals.size()) return true;
+	uint gid=g2g.size();
+	for(uint exp_gid=0; exp_gid<exp.goals.size(); exp_gid++) {
+		if(!g2g.find_inv(exp_gid) && goals.at(gid).br==exp.goals.at(exp_gid).br) {
+			const auto& symbols = goals.at(gid).symbols;
+			const auto& exp_symbols = exp.goals.at(exp_gid).symbols;
+			bool match=true;
+			set<int> new_mappings;
+			for(uint i=0; i<symbols.size(); i++) {
+				bool eligible1 = (symbols.at(i).isconstant ? false:
+					var2goals.at(symbols.at(i).var).size()>1);
+				bool eligible2 = (exp_symbols.at(i).isconstant ? false:
+					exp.var2goals.at(exp_symbols.at(i).var).size()>1);
+				if(eligible1 != eligible2) {
+					match=false;
+					break;
+				}
+				if(eligible1) {
+					if(!jv2jv.find(symbols.at(i).var)) {
+						if(jv2jv.find_inv(exp_symbols.at(i).var)) {
+							match=false; break;
+						}
+						else {
+							new_mappings.insert(symbols.at(i).var);
+							jv2jv.insert(symbols.at(i).var, exp_symbols.at(i).var);
+						}
+					}
+					if(jv2jv.at(symbols.at(i).var)!=exp_symbols.at(i).var) {
+						match=false; break;
+					}
+				}
+			}
+			if(match) {
+				g2g.insert(gid, exp_gid);
+				if(try_merge(exp, g2g, jv2jv)) return true;
+				g2g.erase(gid);
+			}
+			for(auto jvar: new_mappings) jv2jv.erase(jvar);
+		}
+	}
+	return false;
+}
+
+int Expression::add_new_var(char code, Dtype dtp, std::string name) {
+	assert(code=='h' || code=='f');
+	assert(name2var.find(name)==name2var.end());
+	int var=(*allvars.rbegin())+1;
+	allvars.insert(var);
+	if(code=='h') {
+		freeheadvars.insert(var);
+		headvars.insert(var);
+	}
+	var2dtype[var] = dtp;
+	var2name[var] = name;
+	name2var[name] = var;
+	return var;
+}
+
+
+Expression Expression::merge_with(const Expression& exp) const {
+	if(join_merge_sketch!=exp.join_merge_sketch)
+		return Expression();
+	oto_map<int, int> g2g;
+	oto_map<int, int> jv2jv;
+	if(!try_merge(exp, g2g, jv2jv))
+		return Expression();
+	Expression result(*this);
+	result.name = "merge{"+name+", "+exp.name+"}";
+	assert(!(this->empty()));
+
+	int num_new_vars=0;
+	for(uint gid=0; gid<goals.size(); gid++) {
+		auto& symbols = result.goals[gid].symbols;
+		const auto& exp_symbols = exp.goals.at(g2g.at(gid)).symbols;
+		for(uint i=0; i<symbols.size(); i++) {
+			if(symbols[i].isconstant) {
+				if(symbols[i]!=exp_symbols.at(i))
+					symbols[i] = Symbol(result.add_new_var('h', 
+						result.goals[gid].br->dtype_at(i),
+						(exp_symbols.at(i).isconstant ? "nv"+to_string(num_new_vars++):
+							exp.name+"::"+exp.var2name.at(exp_symbols.at(i).var))));
+			}
+			else {
+				if(result.headvars.find(symbols[i].var)==result.headvars.end()) {
+					auto exp_symbol = exp_symbols.at(i);
+					if(exp_symbol.isconstant 
+						|| exp.headvars.find(exp_symbol.var)!=exp.headvars.end()) {
+						result.headvars.insert(symbols[i].var);
+						result.freeheadvars.insert(symbols[i].var);
+					}
+				}
+			}
+		}
+	}
+	result.compute_extrafeatures();
+	return result;
 }
