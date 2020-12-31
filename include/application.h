@@ -2,6 +2,7 @@
 #define APPLICATION_H
 
 #include "query.h"
+#include "base_relation.h"
 
 #include <map>
 #include <set>
@@ -16,9 +17,10 @@ class Application {
 	std::map<const Index*, std::map<const Query*, std::set<const ViewTuple*>>> index_to_query2vt;
 	std::map<const Query*, std::map<const Index*, std::set<const ViewTuple*>>> query_to_index2vt;
 	int max_num_goals_index;  //!< maximum number of goals in a candidate index's body
-	void generate_candidates();
+	void generate_candidates(const std::map<const BaseRelation*, const BaseRelation::Table*> br2table);
 public:
-	Application(const std::vector<Query>& workload, int k=3);
+	Application(const std::vector<Query>& workload, const std::map<const BaseRelation*, 
+		const BaseRelation::Table*> br2table, int k=3);
 	void show_candidates() const;
 };
 

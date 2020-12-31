@@ -14,9 +14,12 @@ class ViewTuple;
 /** Index */
 class Index {
 	Expression exp;
+	Expression::Table stats;
 public:
-	Index(const Expression& exp_arg);
+	Index(const Expression& exp_arg, const std::map<const BaseRelation*, 
+		const BaseRelation::Table*>& br2table);
 	const Expression& expression() const;
+	const Expression::Table& get_stats() const;
 };
 
 

@@ -3,44 +3,48 @@
 #include "utils.h"
 #include "containment_map.h"
 #include "expression.h"
+#include "base_relation.h"
 
 #include <vector>
 #include <iostream>
 #include <set>
 #include <utility>
+#include <map>
 
 using std::vector;
 using esutils::generate_subsets;
 using std::cout;
 using std::endl;
+using std::map;
 
-Application::Application(const vector<Query>& workload, int k) {
+Application::Application(const vector<Query>& workload, const std::map<const BaseRelation*, 
+		const BaseRelation::Table*> br2table, int k) {
 	for(auto& query: workload)
 		queries.push_back(query);
 	max_num_goals_index = k;
-	generate_candidates();
+	generate_candidates(br2table);
 }
 
-void Application::generate_candidates() {
+void Application::generate_candidates(const map<const BaseRelation*, const BaseRelation::Table*> br2table) {
 	// generate all subexpressions of every query to get an initial set of candidate index
 	for(auto& query: queries) {
 		for(int k=1; k<=max_num_goals_index && k<=query.expression().num_goals(); k++) {
 			for(auto& subset: generate_subsets(
 				query.expression().num_goals(), k)) {
 				if(query.expression().connected(subset)) {
-					Index ind(query.expression().subexpression(subset));
+					Expression exp = query.expression().subexpression(subset);
 					bool match=false;
 					for(auto& index: indexes) {
 						if(index.expression().get_sketch()
-							==ind.expression().get_sketch()) {
-							if(isomorphic(&index.expression(), &ind.expression())) {
+							==exp.get_sketch()) {
+							if(isomorphic(&index.expression(), &exp)) {
 								match = true;
 								break;
 							}
 						}
 					}
 					if(!match)
-						indexes.push_back(ind);
+						indexes.push_back(Index(exp, br2table));
 				}
 			}
 		}
@@ -64,7 +68,7 @@ void Application::generate_candidates() {
 						}
 					}
 					if(!match)
-						indexes.push_back(Index(exp));
+						indexes.push_back(Index(exp, br2table));
 				}
 			}
 		}
@@ -94,7 +98,7 @@ void Application::generate_candidates() {
 					}
 				}
 				if(!match)
-					indexes.push_back(Index(expr));
+					indexes.push_back(Index(expr, br2table));
 			}
 		}
 	}
@@ -122,7 +126,7 @@ void Application::generate_candidates() {
 					}
 				}
 				if(!match)
-					indexes.push_back(Index(expr));
+					indexes.push_back(Index(expr, br2table));
 			}
 		}
 	}
@@ -153,6 +157,7 @@ void Application::show_candidates() const {
 	for(const auto& index: indexes) {
 		cout<<"Index: "<<pos++<<endl;
 		cout<<index.expression().show()<<endl;
+		cout<<index.get_stats().df.show()<<endl;
 
 		int pos_q=1;
 		for(auto item: index_to_query2vt.at(&index)) {

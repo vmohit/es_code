@@ -87,13 +87,18 @@ list<ViewTuple> Query::get_view_tuples(const Index& index) const {
 	return result;
 }
 
-Index::Index(const Expression& exp_arg)
-: exp(exp_arg) {
+Index::Index(const Expression& exp_arg, const std::map<const BaseRelation*, 
+		const BaseRelation::Table*>& br2table)
+: exp(exp_arg), stats(&exp_arg, br2table) {
 	assert(!exp.empty());
 }
 
 const Expression& Index::expression() const {
 	return exp;
+}
+
+const Expression::Table& Index::get_stats() const {
+	return stats;
 }
 
 

@@ -174,6 +174,23 @@ void test_viewtuple_construction() {
 	for(auto &br: brs)
 		cout<<br.show()<<endl;
 
+	vector<vector<Data>> ktups, etups, ctups;
+	vector<ColumnMetaData> kcolmds {{"k", Dtype::Int}, {"d", Dtype::Int}};
+	vector<ColumnMetaData> ecolmds {{"e", Dtype::Int}, {"d", Dtype::Int}};
+	vector<ColumnMetaData> ccolmds {{"e", Dtype::Int}, {"c", Dtype::String}};
+	vector<DataFrame> dfs{{kcolmds, ktups}, {ecolmds, etups}, {ccolmds, ctups}};
+	vector<BaseRelation::Table> tabs;
+	for(uint i=0; i<brs.size(); i++) {
+		BaseRelation::Table tab(&brs[i], "");
+		tab.df = dfs[i];
+		tabs.push_back(tab);
+	}
+
+	map<const BaseRelation*, const BaseRelation::Table*> br2table;
+	for(uint i=0; i<brs.size(); i++) {
+		br2table[&brs[i]] = &tabs[i];
+	}
+
 	map<std::string, const BaseRelation*> name2br {{"K", &brs[0]}, {"E", &brs[1]}, {"C", &brs[2]}};
 	string query_str = "Qent[k1, k2](e, c) :- K(k1, d); K(k2, d); E(e, d); C(e, c); C(e, str_phone)";
 	Expression query_expr(query_str, name2br);
@@ -182,7 +199,7 @@ void test_viewtuple_construction() {
 
 	string einv_str = "EINV[k1, k2](e, c) :- K(k1, d); K(k2, d); E(e, d); C(e, c)";
 	Expression einv_expr(einv_str, name2br);
-	Index einv(einv_expr);
+	Index einv(einv_expr, br2table);
 	cout<<einv.expression().show()<<endl; 
 
 	for(auto vt: query.get_view_tuples(einv))
@@ -196,6 +213,23 @@ void test_subcores() {
 								{"part", {{Dtype::Int, "Store"}, {Dtype::Int, "Make"}, {Dtype::Int, "City"}}} };
 	for(auto &br: brs)
 		cout<<br.show()<<endl;
+
+	vector<vector<Data>> ctups, ltups, ptups;
+	vector<ColumnMetaData> ccolmds {{"m", Dtype::Int}, {"d", Dtype::String}};
+	vector<ColumnMetaData> lcolmds {{"d", Dtype::String}, {"c", Dtype::Int}};
+	vector<ColumnMetaData> pcolmds {{"s", Dtype::Int}, {"m", Dtype::Int}, {"c", Dtype::Int}};
+	vector<DataFrame> dfs{{ccolmds, ctups}, {lcolmds, ltups}, {pcolmds, ptups}};
+	vector<BaseRelation::Table> tabs;
+	for(uint i=0; i<brs.size(); i++) {
+		BaseRelation::Table tab(&brs[i], "");
+		tab.df = dfs[i];
+		tabs.push_back(tab);
+	}
+
+	map<const BaseRelation*, const BaseRelation::Table*> br2table;
+	for(uint i=0; i<brs.size(); i++) {
+		br2table[&brs[i]] = &tabs[i];
+	}
 
 	map<std::string, const BaseRelation*> name2br {{"car", &brs[0]}, {"loc", &brs[1]}, {"part", &brs[2]}};
 	string query_str = "q1[S](C) :- car(M, str_anderson); loc(str_anderson, C); part(S, M, C)";
@@ -212,7 +246,7 @@ void test_subcores() {
 	};
 	for(string index_str: index_strs) {
 		Expression index_expr(index_str, name2br);
-		Index index(index_expr);
+		Index index(index_expr, br2table);
 		cout<<"Index: ";
 		cout<<index.expression().show()<<endl<<endl; 
 
@@ -222,25 +256,59 @@ void test_subcores() {
 	}
 }
 
+
+
+
 void test_candidate_generation() {
-	cout<<"--------------------Start test_candidate_generation()-------------------------\n\n";
-	vector<BaseRelation> brs {{"K", {{Dtype::Int, "k"}, {Dtype::Int, "d"}}},
-								{"E", {{Dtype::Int, "e"}, {Dtype::Int, "d"}}},
-								{"C", {{Dtype::Int, "e"}, {Dtype::String, "c"}}} };
+	cout<<"--------------------Start test_cost_model()-------------------------\n\n";
+	vector<BaseRelation> brs {{"K", {{Dtype::String, "k"}, {Dtype::Int, "d"}}},
+								{"E", {{Dtype::String, "e"}, {Dtype::Int, "d"}}},
+								{"C", {{Dtype::String, "e"}, {Dtype::String, "c"}}} };
+	cout<<"Base Relations: \n";
 	for(auto &br: brs)
 		cout<<br.show()<<endl;
+	vector<string> docs {"long red #ferrari:car on long road", "long blue #ferrari:car in #paris:city", 
+						"blue #porche:car on red carpet in #dubai:city", "red porche short race", "blue #bugatti:car road"};
+	vector<vector<Data>> ktups, etups, ctups;
+	int did = 0;
+	for(auto doc: docs) {
+		auto tokens = split(doc, " ");
+		for(uint i=0; i<tokens.size(); i++) {
+			if(tokens[i][0]=='#') {
+				auto parts = split(split(tokens[i], "#")[1], ":");
+				etups.push_back(vector<Data>{Data(parts[0]), Data(did)});
+				ctups.push_back(vector<Data>{Data(parts[0]), Data(parts[1])});
+			}
+			else
+				ktups.push_back(vector<Data>{Data(tokens[i]), Data(did)});
+		}
+		did += 1;
+	}
+	vector<ColumnMetaData> kcolmds {{"k", Dtype::String}, {"d", Dtype::Int}};
+	vector<ColumnMetaData> ecolmds {{"e", Dtype::String}, {"d", Dtype::Int}};
+	vector<ColumnMetaData> ccolmds {{"e", Dtype::String}, {"c", Dtype::String}};
+	vector<DataFrame> dfs{{kcolmds, ktups}, {ecolmds, etups}, {ccolmds, ctups}};
+	vector<BaseRelation::Table> tabs;
+	for(uint i=0; i<brs.size(); i++) {
+		BaseRelation::Table tab(&brs[i], "");
+		tab.df = dfs[i];
+		tabs.push_back(tab);
+	}
+
+	map<const BaseRelation*, const BaseRelation::Table*> br2table;
+	for(uint i=0; i<brs.size(); i++) {
+		br2table[&brs[i]] = &tabs[i];
+	}
 
 	map<std::string, const BaseRelation*> name2br {{"K", &brs[0]}, {"E", &brs[1]}, {"C", &brs[2]}};
-	string query = "Qent[k1, k2](d, e) :- K(k1, d); K(k2, d); E(e, d); C(e, str_phone); E(int_3, d); E(int_4, d)";
+	string query = "Qent[k1, k2, c](d, e) :- K(k1, d); K(k2, d); E(e, d); C(e, c)";
 	Expression expr(query, name2br);
+	cout<<"Query: ";
 	cout<<expr.show()<<endl;  
 
-	Application app(vector<Query>{Query(expr)}, 3);
+	Application app(vector<Query>{Query(expr)}, br2table, 3);
 	app.show_candidates();
 }
-
-
-
 
 
 
