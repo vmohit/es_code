@@ -50,6 +50,12 @@ public:
 
 	std::set<std::vector<Data>> get_unique_rows() const;
 
+	int num_unique_rows() const;
+
+	/** Returns sorted array of rows where the columns are rearranged in increasing 
+	order of cardinality with a higher priority if its in the given set of prefix_cids*/
+	std::vector<std::vector<Data>> get_sorted_rows(std::set<std::string> prefix_cids) const;
+
 	std::string show() const;  //!< show the dataframe for debugging
 };
 

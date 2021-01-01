@@ -1,6 +1,7 @@
 #include "application.h"
 #include "query.h"
 #include "utils.h"
+#include "data.h"
 #include "containment_map.h"
 #include "expression.h"
 #include "base_relation.h"
@@ -158,6 +159,18 @@ void Application::show_candidates() const {
 		cout<<"Index: "<<pos++<<endl;
 		cout<<index.expression().show()<<endl;
 		cout<<index.get_stats().df.show()<<endl;
+		cout<<"Total storage cost: "<<index.storage_cost()<<endl;
+		cout<<"Avg disk block size: "<<index.avg_block_size()<<endl;
+		cout<<"Sorted stats tuples: \n";
+		for(auto row: index.rearranged_rows) {
+			for(auto cell: row) {
+				cout<<"\t";
+				if(cell.get_dtype()==Dtype::String) cout<<cell.get_str_val();
+				else cout<<cell.get_int_val();
+			}
+			cout<<endl;
+		}
+		cout<<"\n\nView Tuples:\n";
 
 		int pos_q=1;
 		for(auto item: index_to_query2vt.at(&index)) {
@@ -168,6 +181,7 @@ void Application::show_candidates() const {
 				cout<<"\t\t"<<vt->show()<<endl;
 			}
 		} 
+		cout<<"\n----------------------\n\n";
 	}
 	cout<<indexes.size()<<" indexes\n";
 	cout<<view_tuples_pool.size()<<" view tuples\n";

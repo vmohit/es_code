@@ -10,6 +10,7 @@
 #include <cassert>
 #include <sstream>
 #include <iostream>
+#include <algorithm>
 
 using std::vector;
 using std::map;
@@ -18,6 +19,7 @@ using std::set;
 using std::cout;
 using std::endl;
 using std::pair;
+using std::sort;
 using std::make_pair;
 using std::stringstream;
 using esutils::set_intersection_inplace;
@@ -117,7 +119,8 @@ void DataFrame::project_out(const string& colid) {
 		cols[pos] = cols[lastpos];
 	cols.pop_back();
 	cid2pos.erase(colid);
-	cid2pos[cols[pos].cmd.cid] = pos;
+	if(pos!=lastpos)
+		cid2pos[cols[pos].cmd.cid] = pos;
 
 	for(auto &ele: rows) {
 		if(pos!=lastpos)
@@ -281,4 +284,40 @@ set<vector<Data>> DataFrame::get_unique_rows() const {
 	for(auto& item: result)
 		ret_result.insert(item.row);
 	return ret_result;
+}
+
+int DataFrame::num_unique_rows() const {
+	set<Row> result;
+	for(auto& item: rows)
+		result.insert(item.second);
+	return result.size();
+}
+
+vector<vector<Data>> DataFrame::get_sorted_rows(set<string> prefix_cids) const {
+	vector<pair<int, pair<int, int>>> priority_card_cpos;
+	for(auto it=cid2pos.begin(); it!=cid2pos.end(); it++) {
+		auto cid = it->first;
+		auto pos = it->second;
+		if(prefix_cids.find(cid)==prefix_cids.end()) 
+			priority_card_cpos.push_back(make_pair(2, 
+				make_pair(cols.at(pos).val2rowids.size(), pos)));
+		else 
+			priority_card_cpos.push_back(make_pair(1, 
+				make_pair(cols.at(pos).val2rowids.size(), pos)));
+	}
+
+	sort(priority_card_cpos.begin(), priority_card_cpos.end());
+
+	vector<Row> new_rows;
+	for(auto it=rows.begin(); it!=rows.end(); it++) {
+		const auto& row = it->second;
+		new_rows.push_back(Row());
+		for(auto ele: priority_card_cpos)
+			new_rows.back().row.push_back(row.row.at(ele.second.second));
+	}
+	sort(new_rows.begin(), new_rows.end());
+	vector<vector<Data>> result;
+	for(auto& row: new_rows)
+		result.push_back(row.row);
+	return result;
 }

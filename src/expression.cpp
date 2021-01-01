@@ -277,6 +277,7 @@ Expression::Table::Table(const Expression* exp_arg,
 
 	auto empty_df=df;
 	auto allvar2cid = execute_goal(df, exp, 0, br2table.at(exp->goals.at(0).br));
+
 	set<int> remaining_gids;
 	for(uint i=1; i<exp->goals.size(); i++)
 		remaining_gids.insert(i);

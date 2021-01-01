@@ -28,11 +28,11 @@ void test_subcores();
 void test_candidate_generation();
 
 int main() {
-	test_expression();
-	test_dataframe();
-	test_exp_execution();
-	test_viewtuple_construction();
-	test_subcores();
+	// test_subcores();
+	// test_expression();
+	// test_dataframe();
+	// test_exp_execution();
+	// test_viewtuple_construction();
 	test_candidate_generation();
 	return 0;
 }

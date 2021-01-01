@@ -11,15 +11,25 @@
 
 class ViewTuple;
 
+const double mem_storage_weight=10;
+const double disk_storage_weight=1;
+
 /** Index */
 class Index {
 	Expression exp;
 	Expression::Table stats;
+	
+	double avg_disk_block_size=0;
+	double total_storage_cost=0;
 public:
+	std::vector<std::vector<Data>> rearranged_rows;
+
 	Index(const Expression& exp_arg, const std::map<const BaseRelation*, 
 		const BaseRelation::Table*>& br2table);
 	const Expression& expression() const;
 	const Expression::Table& get_stats() const;
+	double storage_cost() const;
+	double avg_block_size() const;
 };
 
 

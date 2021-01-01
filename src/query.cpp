@@ -8,6 +8,7 @@
 #include <vector>
 #include <list>
 #include <queue>
+#include <stack>
 #include <iostream>
 
 using std::map;
@@ -18,6 +19,7 @@ using std::to_string;
 using std::list;
 using std::queue;
 using std::cout;
+using std::stack;
 using std::endl;
 
 Query::Query(const Expression& exp_arg)
@@ -91,7 +93,43 @@ Index::Index(const Expression& exp_arg, const std::map<const BaseRelation*,
 		const BaseRelation::Table*>& br2table)
 : exp(exp_arg), stats(&exp_arg, br2table) {
 	assert(!exp.empty());
+
+	set<string> prefix_cids;
+	for(auto var: exp.head_vars())
+		if(exp.is_bound_headvar(var))
+			prefix_cids.insert(stats.headvar2cid.at(var));
+	vector<vector<Data>> rows = stats.df.get_sorted_rows(prefix_cids);
+	if(rows.size()>0) {
+		vector<double> total_size(exp.head_vars().size());
+		vector<int> num_tokens(exp.head_vars().size());
+		vector<Data> last_row;
+		for(auto& row: rows) {
+			uint i=0;
+			for(; i<last_row.size(); i++) 
+				if(last_row[i]!=row[i]) break;
+			for(; i<row.size(); i++) {
+				num_tokens[i] += 1;
+				total_size[i] += (row[i].get_dtype()==Dtype::String ?
+					row[i].get_str_val().size(): 4);
+			}
+			last_row = row;
+		}
+		for(uint i=0; i<num_tokens.size(); i++) {
+			total_storage_cost += total_size[i] * (i<prefix_cids.size() 
+				? mem_storage_weight : disk_storage_weight);
+			if (i>=prefix_cids.size())
+				avg_disk_block_size += total_size[i] * disk_storage_weight;
+		}
+		int num_disk_blocks = 1;
+		if(prefix_cids.size()>0)
+			num_disk_blocks = num_tokens[prefix_cids.size()-1];
+		avg_disk_block_size/=num_disk_blocks;
+	}
+	rearranged_rows = rows;
 }
+
+double Index::storage_cost() const { return total_storage_cost;}
+double Index::avg_block_size() const {return avg_disk_block_size;}
 
 const Expression& Index::expression() const {
 	return exp;
