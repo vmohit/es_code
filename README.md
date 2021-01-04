@@ -27,16 +27,16 @@ Following plan has weekly checkpoints. Please refer to the checkboxes to measure
 
 - [x] [November 15] Identify if two given expressions have the same join structure. Eg:- "E1[k1]\(d, e\):- K(k1, d), E(e, d), C(e, phone)" and "E2[]\(d, e, c\):- K(red, d), E(e, d), C(e, c)" has the same join structure with the join variables "d" and "e". Return a merged expression "Emerged[k1]\(d, e, c\):- K(k1, d), E(e, d), C(e, c)" which is a generalization of the two subexpressions. Use it to merge candidate indexes and generate more candidate indexes.
 
-- [ ] [November 22] Compute index maintenance cost: use the dataframe class to estimate the index storage costs. 
+- [x] [November 22] Compute index maintenance cost: use the dataframe class to estimate the index storage costs. 
 
-- [ ] [November 29] Compute query evaluation cost: use the dataframe class to estimate cost for each step of a query plan
+- [ ] [January 6] Compute query evaluation cost: use the dataframe class to estimate cost for each step of a query plan
 
-- [ ] [December 6] Implement cost based pruning of indexes and view tuples. 
+- [ ] [January 6] Implement cost based pruning of indexes and view tuples. 
 	1. If an index has too high maintenance cost then don't consider it
 	2. Compute lower and upper bounds on the cost contribution of each view tuple. If the lower bound of cost contribution of a view tuple is too high, then don't consider it.
 
-- [ ] [December 13] Implement weighted set cover based optimizer
+- [ ] [January 9] Implement weighted set cover based optimizer
 
-- [ ] [December 20] Implement branch and bound based optimizer
+- [ ] [January 9] Implement branch and bound based optimizer
 
 
