@@ -42,7 +42,7 @@ public:
 	std::string self_join(const std::string& col1, const std::string& col2);  //!< returns the colid of joined result and projects out the redundant column
 	void join(const DataFrame& df, const std::vector<std::pair<std::string, std::string>>& this2df);  //!< joins df into this dataframe. Matched columns of df will be projected out in the output
 	
-	void prepend_to_cids(const std::string& prefix); //!< adds the given prefix to ids of each column
+	void prepend_to_cids(const std::string& prefix); //!< adds the given prefix+"_" to ids of each column id. Adds the prefix "red" to id "ferrari" to obtain the result "red_ferrari"  
 	const std::vector<ColumnMetaData>& get_header() const;  //!< return a read-only copy of header
 	
 	std::vector<std::vector<Data>> get_rows() const;

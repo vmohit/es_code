@@ -29,6 +29,7 @@ namespace esutils {
 	public:
 		random_number_generator();
 		uint sample(const std::vector<float>& dist);  //!< sample from a given multinomial distribution
+		std::vector<int> random_permutation(int n); //!< returns a random permutation of sequence [0, 1, ..., n-1]
 	};
 
 	//!< pads the given character to the string until its size becomes len

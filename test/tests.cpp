@@ -194,7 +194,7 @@ void test_viewtuple_construction() {
 	map<std::string, const BaseRelation*> name2br {{"K", &brs[0]}, {"E", &brs[1]}, {"C", &brs[2]}};
 	string query_str = "Qent[k1, k2](e, c) :- K(k1, d); K(k2, d); E(e, d); C(e, c); C(e, str_phone)";
 	Expression query_expr(query_str, name2br);
-	Query query(query_expr);
+	Query query(query_expr, br2table);
 	cout<<query.expression().show()<<endl;  
 
 	string einv_str = "EINV[k1, k2](e, c) :- K(k1, d); K(k2, d); E(e, d); C(e, c)";
@@ -234,7 +234,7 @@ void test_subcores() {
 	map<std::string, const BaseRelation*> name2br {{"car", &brs[0]}, {"loc", &brs[1]}, {"part", &brs[2]}};
 	string query_str = "q1[S](C) :- car(M, str_anderson); loc(str_anderson, C); part(S, M, C)";
 	Expression query_expr(query_str, name2br);
-	Query query(query_expr);
+	Query query(query_expr, br2table);
 	cout<<query.expression().show()<<endl;  
 
 	vector<string> index_strs {
@@ -304,9 +304,10 @@ void test_candidate_generation() {
 	string query = "Qent[k1, k2, c](d, e) :- K(k1, d); K(k2, d); E(e, d); C(e, c)";
 	Expression expr(query, name2br);
 	cout<<"Query: ";
-	cout<<expr.show()<<endl;  
+	Query Q(expr, br2table);
+	cout<<Q.show()<<endl;  
 
-	Application app(vector<Query>{Query(expr)}, br2table, 3);
+	Application app(vector<Query>{Q}, br2table, 3);
 	app.show_candidates();
 }
 

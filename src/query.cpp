@@ -1,6 +1,8 @@
 #include "query.h"
 #include "data.h"
+#include "dataframe.h"
 #include "expression.h"
+#include "utils.h"
 
 #include <map>
 #include <string>
@@ -8,9 +10,11 @@
 #include <vector>
 #include <list>
 #include <queue>
-#include <stack>
+#include <utility>
 #include <iostream>
+#include <algorithm>
 
+using std::min;
 using std::map;
 using std::vector;
 using std::set;
@@ -19,10 +23,13 @@ using std::to_string;
 using std::list;
 using std::queue;
 using std::cout;
-using std::stack;
 using std::endl;
+using std::pair;
+using std::make_pair;
+using esutils::random_number_generator;
 
-Query::Query(const Expression& exp_arg)
+Query::Query(const Expression& exp_arg, const std::map<const BaseRelation*, 
+	const BaseRelation::Table*>& stats_br2table, int num_samples)
 : exp(exp_arg) {
 	assert(!exp.empty());
 	map<const BaseRelation*, BaseRelation::Table*> br2tab;
@@ -66,10 +73,66 @@ Query::Query(const Expression& exp_arg)
 		br2table[item.first] = item.second;
 	for(auto item: var2const)
 		const2var[item.second] = item.first;
+
+	Expression::Table big_result(&exp, stats_br2table);
+	for(auto headvar: exp.head_vars())
+		if(!exp.is_bound_headvar(headvar)) {
+			big_result.df.project_out(big_result.headvar2cid.at(headvar));
+			big_result.headvar2cid.erase(headvar);
+		}
+	
+	auto rows = big_result.df.get_rows();
+	if(rows.size()>0) {
+		random_number_generator rng;
+		auto permutation = rng.random_permutation(rows.size());
+		num_samples = min(num_samples, (int) rows.size());
+		for(int i=0; i<num_samples; i++) {
+			map<int, Data> inputs;
+			for(auto headvar: exp.head_vars())
+				if(exp.is_bound_headvar(headvar))
+					inputs.emplace(headvar, rows[permutation[i]]
+											[big_result.df.get_cid2pos(big_result.headvar2cid.at(headvar))]);
+			sample_inputs.push_back(inputs);
+		}
+
+		// for(uint i=0; i<rows.size(); i++) {
+		// 	map<int, Data> inputs;
+		// 	for(auto headvar: exp.head_vars())
+		// 		if(exp.is_bound_headvar(headvar))
+		// 			inputs.emplace(headvar, rows[permutation[i]]
+		// 									[big_result.df.get_cid2pos(big_result.headvar2cid.at(headvar))]);
+		// 	for(auto input: inputs) {
+		// 		auto data = input.second;
+		// 		cout<<(data.get_dtype()==Dtype::Int ? to_string(data.get_int_val()): data.get_str_val()) << "\t";
+		// 	}
+		// 	cout<<endl;
+		// }
+	}
+}
+
+const vector<map<int, Data>>& Query::get_sample_inputs() const {
+	return sample_inputs;
 }
 
 const Expression& Query::expression() const {
 	return exp;
+}
+
+string Query::show() const {
+	string result = exp.show() + "\n" + "sample inputs: \n";
+	if(sample_inputs.size()>0) {
+		for(auto hvar_data: sample_inputs[0])
+			result += exp.var_to_name(hvar_data.first) + "\t";
+		result += "\n";
+		for(uint i=0; i<sample_inputs.size(); i++) {
+			for(auto hvar_data: sample_inputs[i]) {
+				auto data = hvar_data.second;
+				result += (data.get_dtype()==Dtype::Int ? to_string(data.get_int_val()): data.get_str_val()) + "\t";
+			}
+			result += "\n";
+		}
+	}
+	return result;
 }
 
 list<ViewTuple> Query::get_view_tuples(const Index& index) const {
@@ -264,3 +327,47 @@ void ViewTuple::try_match(bool& match, set<int>& subcore,
 		}
 	}
 }
+
+
+// Plan::Plan(const Query& qry): query(qry), 
+//   stats(vector<ColumnMetaData>(), vector<vector<Data>>()) {}
+
+// bool Plan::can_append(const& ViewTuple vt) const {
+// 	if(vt.query!=query) return false;
+// 	for(auto& ele: vt.index2query) 
+// 		if(!ele.second.isconstant)
+// 			if(queryvar2cid.find(ele.second.var)!=queryvar2cid.end())
+// 				return true;
+// 	return false;
+// }
+
+// void Plan::execute_view_tuple(const& ViewTuple vt, DataFrame& df_vt, 
+// 	map<int, string> &var2cid) {
+
+// 	df_vt=vt.index.get_stats().df;
+// 	string prefix = to_string(stages.size());
+// 	for(auto& hvar_cid: vt.index.get_stats().headvar2cid) {
+// 		auto target_symbol = vt.index2query.at(hvar_cid.first);
+// 		if(target_symbol.isconstant)
+// 			df_vt.select(hvar_cid.second, target_symbol.dt);
+// 		else {
+// 			auto var = target_symbol.var;
+// 			if(var2cid.find(var)==var2cid.end())
+// 				var2cid[var] = hvar_cid.second;
+// 			else
+// 				var2cid[var] = df_vt.self_join(var2cid.at(var), hvar_cid.second);
+// 		}
+// 	}
+// 	df_vt.prepend_to_cids(prefix);
+// 	for(auto it=var2cid.begin(); it!=var2cid.end(); it++)
+// 		it->second = prefix_cids + "_" + it->second;
+// }
+
+// bool Plan::append(const& ViewTuple vt) {
+// 	if(!can_append(vt)) return false;
+// 	DataFrame df_vt(vector<ColumnMetaData>(0), vector<vector<Data>>(0));
+// 	map<int, string> var2cid;
+// 	execute_view_tuple(vt, df_vt, var2cid);
+// 	vector<pair<string, string>> this2df;
+
+// }

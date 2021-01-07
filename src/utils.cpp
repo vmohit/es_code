@@ -9,10 +9,14 @@
 #include <random>
 #include <cassert>
 #include <set>
+#include <utility>
 
 using std::set;
 using std::string;
 using std::vector;
+using std::sort;
+using std::pair;
+using std::make_pair;
 
 bool esutils::remove_char(char c) {
 	if(c>='a' && c<='z')
@@ -92,6 +96,19 @@ uint esutils::random_number_generator::sample(const vector<float>& dist) {
 	}
 	return dist.size()-1;
 }
+
+vector<int> esutils::random_number_generator::random_permutation(int n) {
+	assert(n>0);
+	vector<pair<int, float>> priority_num;
+	for(int i=0; i<n; i++)
+		priority_num.push_back(make_pair(distribution(generator), i));
+	sort(priority_num.begin(), priority_num.end());
+	vector<int> result;
+	for(int i=0; i<n; i++)
+		result.push_back(priority_num[i].second);
+	return result;
+}
+
 
 string esutils::left_padded_str(string str, int len, char pad_char) {
 	string result = str;
