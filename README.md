@@ -29,9 +29,9 @@ Following plan has weekly checkpoints. Please refer to the checkboxes to measure
 
 - [x] [November 22] Compute index maintenance cost: use the dataframe class to estimate the index storage costs. 
 
-- [ ] [January 6] Compute query evaluation cost: use the dataframe class to estimate cost for each step of a query plan
+- [x] [January 6] Compute query evaluation cost: use the dataframe class to estimate cost for each step of a query plan
 
-- [ ] [January 6] Implement cost based pruning of indexes and view tuples. 
+- [x] [January 6] Implement cost based pruning of indexes and view tuples. 
 	1. If an index has too high maintenance cost then don't consider it
 	2. Compute lower and upper bounds on the cost contribution of each view tuple. If the lower bound of cost contribution of a view tuple is too high, then don't consider it.
 

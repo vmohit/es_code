@@ -18,6 +18,9 @@ class Application {
 	std::map<const Query*, std::map<const Index*, std::set<const ViewTuple*>>> query_to_index2vt;
 	int max_num_goals_index;  //!< maximum number of goals in a candidate index's body
 	void generate_candidates(const std::map<const BaseRelation*, const BaseRelation::Table*> br2table);
+
+	double max_index_size=1000;
+	double max_vt_lb=1000000;
 public:
 	Application(const std::vector<Query>& workload, const std::map<const BaseRelation*, 
 		const BaseRelation::Table*> br2table, int k=3);

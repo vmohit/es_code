@@ -14,6 +14,8 @@ class ViewTuple;
 
 const double mem_storage_weight=10;
 const double disk_storage_weight=1;
+const double disk_read_time_per_unit=1;
+const double disk_seek_time=100;
 
 /** Index */
 class Index {
@@ -29,6 +31,7 @@ public:
 		const BaseRelation::Table*>& br2table);
 	const Expression& expression() const;
 	const Expression::Table& get_stats() const;
+	std::string show() const;
 	double storage_cost() const;
 	double avg_block_size() const;
 };
@@ -63,6 +66,8 @@ public:
 	const Index& index;
 	std::map<int, Expression::Symbol> index2query;  //!< index variables to query variables
 	std::set<std::set<int>> subcores;
+	double cost_lb = 0;  //!< lower bound
+	double cost_ub = 10000000; //!< upper bound
 	
 	ViewTuple(const Query& query_arg,
 		const Index& index_arg,
@@ -75,17 +80,24 @@ private:
 };
 
 
-// class Plan {
-// 	const Query& query;
-// 	std::vector<ViewTuple> stages;
-// 	DataFrame stats;
-// 	std::map<int, std::string> queryvar2cid;
-// public:
-// 	Plan(const Query& qry);
-// 	bool can_append(const& ViewTuple vt) const;
-// 	bool append(const& ViewTuple vt); //!< returns false if the operation fails
-// 	double time(const& ViewTuple vt) const; //!< returns a very high value if the vt can't be appended
-// 	bool iscomplete() const; 
-// };
+class Plan {
+	const Query& query;
+	std::vector<ViewTuple> stages;
+	std::vector<DataFrame> stats;
+	std::vector<std::map<int, std::string>> queryvar2cid;
+	double cost=0;
+
+	void execute_view_tuple(const ViewTuple& vt, std::vector<DataFrame>& df_vt_lst, 
+		std::vector<std::map<int, std::string>>& qvar2cid_lst) const;
+	double try_append(const ViewTuple& vt, std::vector<DataFrame>& new_stats,
+		std::vector<std::map<int, std::string>>& new_queryvar2cid) const;
+public:
+	Plan(const Query& qry);
+	bool can_append(const ViewTuple& vt) const;
+	bool append(const ViewTuple& vt); //!< returns false if the operation fails
+	double time(const ViewTuple& vt) const; //!< returns a very high value if the vt can't be appended
+	bool iscomplete() const; 
+	double current_cost() const;
+};
 
 #endif
