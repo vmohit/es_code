@@ -11,6 +11,16 @@
 #include <string>
 
 class Application {
+
+	// struct Design {
+	// 	std::set<const Index*> stored_indexes;
+	// 	std::map<const Query*, Plan> plans;
+
+	// 	Design(std::set<const Index*> inds, std::map<const Query*, Plan> ps);
+	// 	bool iscomplete() const;
+	// 	std::string show(const std::map<const MCD*, uint>& mcd_to_order) const;
+	// };
+
 	std::list<Query> queries;
 	std::list<Index> indexes;
 	std::list<ViewTuple> view_tuples_pool;
@@ -19,12 +29,20 @@ class Application {
 	int max_num_goals_index;  //!< maximum number of goals in a candidate index's body
 	void generate_candidates(const std::map<const BaseRelation*, const BaseRelation::Table*> br2table);
 
-	double max_index_size=1000;
-	double max_vt_lb=1000000;
 public:
+	//!< parameters
+	static int max_iters; //!< max number of iterations
+	static double max_index_size;  //!< maximum size of a condidate index
+	static double max_vt_lb;  //!< maximum lower bound cost of a view tuple
+	static double wt_storage;  //!< relative weight of storage cost w.r.t time cost
+
 	Application(const std::vector<Query>& workload, const std::map<const BaseRelation*, 
 		const BaseRelation::Table*> br2table, int k=3);
 	void show_candidates() const;
+
+	// void optimize();
+
+	// void show_design() const;
 };
 
 #endif

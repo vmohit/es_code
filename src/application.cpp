@@ -20,6 +20,13 @@ using std::endl;
 using std::list;
 using std::map;
 
+// initializing parameters
+int Application::max_iters=1000;
+double Application::max_index_size=1000;
+double Application::max_vt_lb=1000000;
+double Application::wt_storage=1;
+
+
 Application::Application(const vector<Query>& workload, const std::map<const BaseRelation*, 
 		const BaseRelation::Table*> br2table, int k) {
 	for(auto& query: workload)

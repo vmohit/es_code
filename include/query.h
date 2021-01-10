@@ -68,7 +68,9 @@ public:
 	std::set<std::set<int>> subcores;
 	double cost_lb = 0;  //!< lower bound
 	double cost_ub = 10000000; //!< upper bound
-	
+	std::set<int> sc_goals;  //!< strongly covered goals
+	std::set<int> wc_goals;  //!< weakly covered goals
+
 	ViewTuple(const Query& query_arg,
 		const Index& index_arg,
 		std::map<int, Expression::Symbol> index2query_arg);
@@ -91,13 +93,27 @@ class Plan {
 		std::vector<std::map<int, std::string>>& qvar2cid_lst) const;
 	double try_append(const ViewTuple& vt, std::vector<DataFrame>& new_stats,
 		std::vector<std::map<int, std::string>>& new_queryvar2cid) const;
+
+	std::set<int> sc_goals;
+	std::set<int> wc_goals;
+
+	bool check_completeness(std::set<int>& covered_goals,
+		std::vector<std::set<int>>& subcores, uint pos) const;
 public:
 	Plan(const Query& qry);
 	bool can_append(const ViewTuple& vt) const;
 	bool append(const ViewTuple& vt); //!< returns false if the operation fails
 	double time(const ViewTuple& vt) const; //!< returns a very high value if the vt can't be appended
-	bool iscomplete() const; 
 	double current_cost() const;
+	
+	bool iscomplete() const; 
+	std::set<int> strongly_covered_goals() const;
+	std::set<int> weakly_covered_goals() const;
+
+	int extra_sc_goals(const ViewTuple& vt) const; //!< returns how many extra strongly covered goals would be there if add vt tot he plan
+	int extra_wc_goals(const ViewTuple& vt) const;
+
+	std::string show() const;
 };
 
 #endif

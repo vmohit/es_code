@@ -82,32 +82,32 @@ Query::Query(const Expression& exp_arg, const std::map<const BaseRelation*,
 		}
 	
 	auto rows = big_result.df.get_rows();
-	if(rows.size()>0) {
-		random_number_generator rng;
-		auto permutation = rng.random_permutation(rows.size());
-		num_samples = min(num_samples, (int) rows.size());
-		for(int i=0; i<num_samples; i++) {
-			map<int, Data> inputs;
-			for(auto headvar: exp.head_vars())
-				if(exp.is_bound_headvar(headvar))
-					inputs.emplace(headvar, rows[permutation[i]]
-											[big_result.df.get_cid2pos(big_result.headvar2cid.at(headvar))]);
-			sample_inputs.push_back(inputs);
-		}
+	assert(rows.size()>0);
 
-		// for(uint i=0; i<rows.size(); i++) {
-		// 	map<int, Data> inputs;
-		// 	for(auto headvar: exp.head_vars())
-		// 		if(exp.is_bound_headvar(headvar))
-		// 			inputs.emplace(headvar, rows[permutation[i]]
-		// 									[big_result.df.get_cid2pos(big_result.headvar2cid.at(headvar))]);
-		// 	for(auto input: inputs) {
-		// 		auto data = input.second;
-		// 		cout<<(data.get_dtype()==Dtype::Int ? to_string(data.get_int_val()): data.get_str_val()) << "\t";
-		// 	}
-		// 	cout<<endl;
-		// }
+	random_number_generator rng;
+	auto permutation = rng.random_permutation(rows.size());
+	num_samples = min(num_samples, (int) rows.size());
+	for(int i=0; i<num_samples; i++) {
+		map<int, Data> inputs;
+		for(auto headvar: exp.head_vars())
+			if(exp.is_bound_headvar(headvar))
+				inputs.emplace(headvar, rows[permutation[i]]
+										[big_result.df.get_cid2pos(big_result.headvar2cid.at(headvar))]);
+		sample_inputs.push_back(inputs);
 	}
+
+	// for(uint i=0; i<rows.size(); i++) {
+	// 	map<int, Data> inputs;
+	// 	for(auto headvar: exp.head_vars())
+	// 		if(exp.is_bound_headvar(headvar))
+	// 			inputs.emplace(headvar, rows[permutation[i]]
+	// 									[big_result.df.get_cid2pos(big_result.headvar2cid.at(headvar))]);
+	// 	for(auto input: inputs) {
+	// 		auto data = input.second;
+	// 		cout<<(data.get_dtype()==Dtype::Int ? to_string(data.get_int_val()): data.get_str_val()) << "\t";
+	// 	}
+	// 	cout<<endl;
+	// }
 }
 
 const vector<map<int, Data>>& Query::get_sample_inputs() const {
@@ -273,6 +273,13 @@ index2query(index2query_arg) {
 				unexplored_goals.erase(id);
 		}
 	}
+
+	for(auto subcore: subcores) {
+		if(subcore.size()==1)
+			sc_goals.insert(*subcore.begin());
+		for(auto gid: subcore)
+			wc_goals.insert(gid);
+	}
 }
 
 
@@ -348,6 +355,7 @@ void ViewTuple::try_match(bool& match, set<int>& subcore,
 Plan::Plan(const Query& qry): query(qry) {}
 
 bool Plan::can_append(const ViewTuple& vt) const {
+
 	if(&(vt.query)!=&query) return false;
 	if(stages.size()==0) return true;
 	for(auto& ele: vt.index2query) 
@@ -436,6 +444,7 @@ double Plan::try_append(const ViewTuple& vt, vector<DataFrame>& new_stats,
 	return added_cost;
 }
 
+
 bool Plan::append(const ViewTuple& vt) {
 	if(!can_append(vt)) return false;
 	
@@ -443,6 +452,16 @@ bool Plan::append(const ViewTuple& vt) {
 
 	cost += added_cost;
 	stages.push_back(vt);
+
+	for(auto gid: vt.sc_goals)
+		sc_goals.insert(gid);
+
+	for(auto gid: vt.wc_goals)
+		wc_goals.insert(gid);	
+
+	vector<set<int>> subcores;
+	for(auto subcore: vt.subcores)
+		subcores.push_back(subcore);
 	return true;
 }
 
@@ -453,6 +472,77 @@ double Plan::time(const ViewTuple& vt) const {
 	return try_append(vt, new_stats, new_queryvar2cid);
 }
 
-bool Plan::iscomplete() const {return false;}
-
 double Plan::current_cost() const {return cost;}
+
+bool Plan::check_completeness(set<int>& covered_goals,
+	vector<set<int>>& subcores, uint pos) const {
+	if(((int)covered_goals.size())==query.expression().num_goals())
+		return true;
+	if(pos>=subcores.size())
+		return false;
+	auto& subcore=subcores.at(pos);
+	bool try_adding=true;
+	for(auto gid: subcore)
+		if(covered_goals.find(gid)!=covered_goals.end()) {
+			try_adding=false;
+			break;
+		}
+	if(try_adding) {
+		for(auto gid: subcore)
+			covered_goals.insert(gid);
+		if(check_completeness(covered_goals, subcores, pos+1)) 
+			return true;
+		for(auto gid: subcore)
+			covered_goals.erase(gid);
+	}
+	return check_completeness(covered_goals, subcores, pos+1);
+}
+
+bool Plan::iscomplete() const {
+	if(((int)wc_goals.size())<query.expression().num_goals()) 
+		return false;
+	vector<set<int>> all_subcores;
+	for(auto& vt: stages)
+		for(auto& subcore: vt.subcores)
+			all_subcores.push_back(subcore);
+	set<int> covered_goals;
+	return check_completeness(covered_goals, all_subcores, 0);
+}
+
+set<int> Plan::strongly_covered_goals() const {return sc_goals;}
+set<int> Plan::weakly_covered_goals() const {return wc_goals;}
+
+int Plan::extra_sc_goals(const ViewTuple& vt) const {
+	if(!can_append(vt)) return 0;
+	int result=0;
+	for(auto gid: vt.sc_goals)
+		if(sc_goals.find(gid)==sc_goals.end())
+			result += 1;
+	return result;
+} 
+int Plan::extra_wc_goals(const ViewTuple& vt) const {
+	if(!can_append(vt)) return 0;
+	int result=0;
+	for(auto gid: vt.wc_goals)
+		if(wc_goals.find(gid)==wc_goals.end())
+			result += 1;
+	return result;
+}
+
+string Plan::show() const {
+	string result="(complete = "+to_string(iscomplete())+")\n";
+	result += "ViewTuples:\n";
+	for(auto& vt: stages)
+		result += vt.show() + "\n";
+	result += "cost = " + to_string(cost) + "\n";
+	result += "strongly covered goals: ";
+	for(auto gid: sc_goals)
+		result += to_string(gid) + " ";
+	result += "\n";
+
+	result += "weakly covered goals: ";
+	for(auto gid: wc_goals)
+		result += to_string(gid) + " ";
+	result += "\n";
+	return result;
+}

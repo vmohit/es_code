@@ -27,6 +27,7 @@ void test_viewtuple_construction();
 void test_subcores();
 void test_candidate_generation();
 void test_cost_model();
+void test_plan();
 
 int main() {
 	// test_subcores();
@@ -34,8 +35,9 @@ int main() {
 	// test_dataframe();
 	// test_exp_execution();
 	// test_viewtuple_construction();
-	test_candidate_generation();
+	// test_candidate_generation();
 	// test_cost_model();
+	test_plan();
 	return 0;
 }
 
@@ -400,8 +402,84 @@ void test_cost_model() {
 }
 
 
+void test_plan() {
+	cout<<"--------------------Start test_subcores()-------------------------\n\n";
+	vector<BaseRelation> brs {{"car", {{Dtype::Int, "Make"}, {Dtype::String, "Dealer"}}},
+								{"loc", {{Dtype::String, "Dealer"}, {Dtype::Int, "City"}}},
+								{"part", {{Dtype::Int, "Store"}, {Dtype::Int, "Make"}, {Dtype::Int, "City"}}} };
+	for(auto &br: brs)
+		cout<<br.show()<<endl;
 
+	vector<vector<Data>> ctups{{Data(11), Data("anderson")}};
+	vector<vector<Data>> ltups{{Data("anderson"), Data(12)}}; 
+	vector<vector<Data>> ptups{{Data(13), Data(11), Data(12)}};
+	vector<ColumnMetaData> ccolmds {{"m", Dtype::Int}, {"d", Dtype::String}};
+	vector<ColumnMetaData> lcolmds {{"d", Dtype::String}, {"c", Dtype::Int}};
+	vector<ColumnMetaData> pcolmds {{"s", Dtype::Int}, {"m", Dtype::Int}, {"c", Dtype::Int}};
+	vector<DataFrame> dfs{{ccolmds, ctups}, {lcolmds, ltups}, {pcolmds, ptups}};
+	vector<BaseRelation::Table> tabs;
+	for(uint i=0; i<brs.size(); i++) {
+		BaseRelation::Table tab(&brs[i], "");
+		tab.df = dfs[i];
+		tabs.push_back(tab);
+	}
 
+	map<const BaseRelation*, const BaseRelation::Table*> br2table;
+	for(uint i=0; i<brs.size(); i++) {
+		br2table[&brs[i]] = &tabs[i];
+	}
+
+	map<std::string, const BaseRelation*> name2br {{"car", &brs[0]}, {"loc", &brs[1]}, {"part", &brs[2]}};
+	string query_str = "q1[](S) :- car(M, D); loc(D, C); part(S, M, C)";
+	Expression query_expr(query_str, name2br);
+	Query query(query_expr, br2table);
+	cout<<query.expression().show()<<endl;  
+
+	vector<string> index_strs {
+		"v1[M](C) :- car(M, D); loc(D, C)",
+		"v2[S](M, C) :- part(S, M, C)",
+		"v3[](S) :- car(M, D); loc(D, C); part(S, M, C)",
+		"v4[](D, C, S) :- car(M, D); part(S, M, C)",
+		"v5[D](S, M) :- loc(D, C); part(S, M, C)"
+	};
+	Index v1{{index_strs[0], name2br}, br2table};
+	ViewTuple vt1  = *(query.get_view_tuples(v1).begin());
+	cout<<vt1.show()<<endl;
+
+	Index v2{{index_strs[1], name2br}, br2table};
+	ViewTuple vt2  = *(query.get_view_tuples(v2).begin());
+	cout<<vt2.show()<<endl;
+
+	Index v3{{index_strs[2], name2br}, br2table};
+	ViewTuple vt3  = *(query.get_view_tuples(v3).begin());
+	cout<<vt3.show()<<endl;
+
+	Index v4{{index_strs[3], name2br}, br2table};
+	ViewTuple vt4  = *(query.get_view_tuples(v4).begin());
+	cout<<vt4.show()<<endl;
+
+	Index v5{{index_strs[4], name2br}, br2table};
+	ViewTuple vt5  = *(query.get_view_tuples(v5).begin());
+	cout<<vt5.show()<<endl;
+
+	Plan P(query);
+	P.append(vt4);
+	cout<<"-----------------\n\n";
+	// cout<<P.show()<<"\n\n\n\n";
+	// P.append(vt3);
+	// cout<<"-----------------\n\n";
+	cout<<P.show()<<"\n\n\n\n";
+	P.append(vt1);
+	cout<<"-----------------\n\n";
+	cout<<P.show()<<"\n\n\n\n";
+	P.append(vt5);
+	cout<<"-----------------\n\n";
+	cout<<P.show()<<"\n\n\n\n";
+	P.append(vt2);
+	cout<<"-----------------\n\n";
+	cout<<P.show()<<"\n\n\n\n";
+
+}
 
 
 
