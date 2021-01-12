@@ -354,17 +354,6 @@ void ViewTuple::try_match(bool& match, set<int>& subcore,
 
 Plan::Plan(const Query& qry): query(qry) {}
 
-bool Plan::can_append(const ViewTuple& vt) const {
-
-	if(&(vt.query)!=&query) return false;
-	if(stages.size()==0) return true;
-	for(auto& ele: vt.index2query) 
-		if(!ele.second.isconstant)
-			if(queryvar2cid[0].find(ele.second.var)!=queryvar2cid[0].end())
-				return true;
-	return false;
-}
-
 void Plan::execute_view_tuple(const ViewTuple& vt, vector<DataFrame>& df_vt_lst, 
 	vector<map<int, string>>& qvar2cid_lst) const {
 
@@ -399,8 +388,8 @@ void Plan::execute_view_tuple(const ViewTuple& vt, vector<DataFrame>& df_vt_lst,
 	}
 }
 
-double Plan::try_append(const ViewTuple& vt, vector<DataFrame>& new_stats,
-	vector<map<int, string>>& new_queryvar2cid) const {
+double Plan::try_append(const ViewTuple& vt, vector<list<DataFrame>>& new_stats,
+		vector<list<map<int, string>>>& new_queryvar2cid) const {
 	vector<DataFrame> df_vt_lst;
 	vector<map<int, string>> var2cid_lst;
 	execute_view_tuple(vt, df_vt_lst, var2cid_lst);
@@ -408,30 +397,48 @@ double Plan::try_append(const ViewTuple& vt, vector<DataFrame>& new_stats,
 	double added_cost=0;
 	for(uint i=0; i<query.get_sample_inputs().size(); i++) {
 		if(stages.size()==0) {
-			new_stats.push_back(df_vt_lst[i]);
-			new_queryvar2cid.push_back(var2cid_lst[i]);
+			new_stats.push_back(list<DataFrame>{df_vt_lst[i]});
+			new_queryvar2cid.push_back(list<map<int, string>>{var2cid_lst[i]});
 		}
 		else {
-			vector<pair<string, string>> this2df;
-			for(auto& qvar_cid: var2cid_lst[i]) {
-				if(new_queryvar2cid[i].find(qvar_cid.first)!=new_queryvar2cid[i].end()) 
-					this2df.push_back(make_pair(new_queryvar2cid[i].at(qvar_cid.first), 
-						qvar_cid.second));
-				else
-					new_queryvar2cid[i][qvar_cid.first] = qvar_cid.second;
+			list<list<DataFrame>::iterator> delete_df_its;
+			list<list<map<int, string>>::iterator> delete_qv2cid_its;
+			auto df_it=new_stats[i].begin(); auto qv2cid_it=new_queryvar2cid[i].begin();
+			for(; df_it!=new_stats[i].end(); df_it++, qv2cid_it++) {
+				bool join=false;
+				for(auto& qvar_cid: *qv2cid_it)
+					if(var2cid_lst[i].find(qvar_cid.first)!=var2cid_lst[i].end()) {
+						join=true; break;
+					}
+				if(join) {
+					vector<pair<string, string>> this2df;
+					for(auto& qvar_cid: *qv2cid_it) {
+						if(var2cid_lst[i].find(qvar_cid.first)!=var2cid_lst[i].end()) 
+							this2df.push_back(make_pair(var2cid_lst[i].at(qvar_cid.first), 
+								qvar_cid.second));
+						else
+							var2cid_lst[i][qvar_cid.first] = qvar_cid.second;
+					}
+					df_vt_lst[i].join(*df_it, this2df);
+					delete_df_its.push_back(df_it);
+					delete_qv2cid_its.push_back(qv2cid_it);
+				}	
 			}
-			new_stats[i].join(df_vt_lst[i], this2df);
+			for(auto it: delete_df_its) new_stats[i].erase(it);
+			for(auto it: delete_qv2cid_its) new_queryvar2cid[i].erase(it);
+			new_stats[i].push_back(df_vt_lst[i]);
+			new_queryvar2cid[i].push_back(var2cid_lst[i]);
 		}
 		set<int> keep_qvars;
 		for(auto& ivar_qsymb: vt.index2query)
 			if(!ivar_qsymb.second.isconstant)
 				if(vt.index.expression().is_bound_headvar(ivar_qsymb.first) && 
-					new_queryvar2cid[i].find(ivar_qsymb.second.var)!=new_queryvar2cid[i].end())
+					new_queryvar2cid[i].begin()->find(ivar_qsymb.second.var)!=new_queryvar2cid[i].begin()->end())
 					keep_qvars.insert(ivar_qsymb.second.var);
 		int num_disk_seeks = 1;
 		if(keep_qvars.size()>0) {
-			auto stats_copy = new_stats[i];
-			for(auto& qvar_cid: new_queryvar2cid[i])
+			auto stats_copy = new_stats[i].back();
+			for(auto& qvar_cid: *new_queryvar2cid[i].begin())
 				if(keep_qvars.find(qvar_cid.first)==keep_qvars.end())
 					stats_copy.project_out(qvar_cid.second);
 			num_disk_seeks = stats_copy.num_unique_rows();
@@ -446,7 +453,6 @@ double Plan::try_append(const ViewTuple& vt, vector<DataFrame>& new_stats,
 
 
 bool Plan::append(const ViewTuple& vt) {
-	if(!can_append(vt)) return false;
 	
 	double added_cost = try_append(vt, stats, queryvar2cid);
 
@@ -466,7 +472,6 @@ bool Plan::append(const ViewTuple& vt) {
 }
 
 double Plan::time(const ViewTuple& vt) const {
-	if(!can_append(vt)) return 10000000;
 	auto new_stats = stats;
 	auto new_queryvar2cid = queryvar2cid;
 	return try_append(vt, new_stats, new_queryvar2cid);
@@ -513,7 +518,6 @@ set<int> Plan::strongly_covered_goals() const {return sc_goals;}
 set<int> Plan::weakly_covered_goals() const {return wc_goals;}
 
 int Plan::extra_sc_goals(const ViewTuple& vt) const {
-	if(!can_append(vt)) return 0;
 	int result=0;
 	for(auto gid: vt.sc_goals)
 		if(sc_goals.find(gid)==sc_goals.end())
@@ -521,7 +525,6 @@ int Plan::extra_sc_goals(const ViewTuple& vt) const {
 	return result;
 } 
 int Plan::extra_wc_goals(const ViewTuple& vt) const {
-	if(!can_append(vt)) return 0;
 	int result=0;
 	for(auto gid: vt.wc_goals)
 		if(wc_goals.find(gid)==wc_goals.end())

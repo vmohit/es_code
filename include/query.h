@@ -14,8 +14,8 @@ class ViewTuple;
 
 const double mem_storage_weight=10;
 const double disk_storage_weight=1;
-const double disk_read_time_per_unit=1;
-const double disk_seek_time=100;
+const double disk_read_time_per_unit=0;
+const double disk_seek_time=1;
 
 /** Index */
 class Index {
@@ -85,14 +85,14 @@ private:
 class Plan {
 	const Query& query;
 	std::vector<ViewTuple> stages;
-	std::vector<DataFrame> stats;
-	std::vector<std::map<int, std::string>> queryvar2cid;
+	std::vector<std::list<DataFrame>> stats;
+	std::vector<std::list<std::map<int, std::string>>> queryvar2cid;
 	double cost=0;
 
 	void execute_view_tuple(const ViewTuple& vt, std::vector<DataFrame>& df_vt_lst, 
 		std::vector<std::map<int, std::string>>& qvar2cid_lst) const;
-	double try_append(const ViewTuple& vt, std::vector<DataFrame>& new_stats,
-		std::vector<std::map<int, std::string>>& new_queryvar2cid) const;
+	double try_append(const ViewTuple& vt, std::vector<std::list<DataFrame>>& new_stats,
+		std::vector<std::list<std::map<int, std::string>>>& new_queryvar2cid) const;
 
 	std::set<int> sc_goals;
 	std::set<int> wc_goals;
@@ -101,12 +101,12 @@ class Plan {
 		std::vector<std::set<int>>& subcores, uint pos) const;
 public:
 	Plan(const Query& qry);
-	bool can_append(const ViewTuple& vt) const;
-	bool append(const ViewTuple& vt); //!< returns false if the operation fails
-	double time(const ViewTuple& vt) const; //!< returns a very high value if the vt can't be appended
+	bool append(const ViewTuple& vt); 
+	double time(const ViewTuple& vt) const; 
 	double current_cost() const;
-	
-	bool iscomplete() const; 
+
+	bool iscomplete() const;
+	 
 	std::set<int> strongly_covered_goals() const;
 	std::set<int> weakly_covered_goals() const;
 

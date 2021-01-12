@@ -36,8 +36,8 @@ int main() {
 	// test_exp_execution();
 	// test_viewtuple_construction();
 	// test_candidate_generation();
-	// test_cost_model();
-	test_plan();
+	test_cost_model();
+	// test_plan();
 	return 0;
 }
 
