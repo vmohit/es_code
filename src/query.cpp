@@ -24,13 +24,14 @@ using std::list;
 using std::queue;
 using std::cout;
 using std::endl;
+using std::sort;
 using std::pair;
 using std::make_pair;
 using esutils::random_number_generator;
 
-Query::Query(const Expression& exp_arg, const std::map<const BaseRelation*, 
+Query::Query(const Expression& exp_arg, double wgt, const std::map<const BaseRelation*, 
 	const BaseRelation::Table*>& stats_br2table, int num_samples)
-: exp(exp_arg) {
+: exp(exp_arg), wt(wgt) {
 	assert(!exp.empty());
 	map<const BaseRelation*, BaseRelation::Table*> br2tab;
 	map<int, Data> var2const;
@@ -81,7 +82,9 @@ Query::Query(const Expression& exp_arg, const std::map<const BaseRelation*,
 			big_result.headvar2cid.erase(headvar);
 		}
 	
-	auto rows = big_result.df.get_rows();
+	auto rowset = big_result.df.get_unique_rows();
+	vector<vector<Data>> rows;
+	for (auto& row: rowset) rows.push_back(row);
 	assert(rows.size()>0);
 
 	random_number_generator rng;
@@ -118,18 +121,23 @@ const Expression& Query::expression() const {
 	return exp;
 }
 
-string Query::show() const {
-	string result = exp.show() + "\n" + "sample inputs: \n";
-	if(sample_inputs.size()>0) {
-		for(auto hvar_data: sample_inputs[0])
-			result += exp.var_to_name(hvar_data.first) + "\t";
-		result += "\n";
-		for(uint i=0; i<sample_inputs.size(); i++) {
-			for(auto hvar_data: sample_inputs[i]) {
-				auto data = hvar_data.second;
-				result += (data.get_dtype()==Dtype::Int ? to_string(data.get_int_val()): data.get_str_val()) + "\t";
-			}
+double Query::weight() const {return wt;}
+
+string Query::show(bool verbose) const {
+	string result = exp.show();
+	if(verbose) {
+		result += "\nsample inputs: \n";
+		if(sample_inputs.size()>0) {
+			for(auto hvar_data: sample_inputs[0])
+				result += exp.var_to_name(hvar_data.first) + "\t";
 			result += "\n";
+			for(uint i=0; i<sample_inputs.size(); i++) {
+				for(auto hvar_data: sample_inputs[i]) {
+					auto data = hvar_data.second;
+					result += (data.get_dtype()==Dtype::Int ? to_string(data.get_int_val()): data.get_str_val()) + "\t";
+				}
+				result += "\n";
+			}
 		}
 	}
 	return result;
@@ -152,43 +160,42 @@ list<ViewTuple> Query::get_view_tuples(const Index& index) const {
 	return result;
 }
 
-Index::Index(const Expression& exp_arg, const std::map<const BaseRelation*, 
-		const BaseRelation::Table*>& br2table)
-: exp(exp_arg), stats(&exp_arg, br2table) {
+Index::Index(const Expression& exp_arg): exp(exp_arg) {
 	assert(!exp.empty());
 
-	set<string> prefix_cids;
-	for(auto var: exp.head_vars())
-		if(exp.is_bound_headvar(var))
-			prefix_cids.insert(stats.headvar2cid.at(var));
-	vector<vector<Data>> rows = stats.df.get_sorted_rows(prefix_cids);
-	if(rows.size()>0) {
-		vector<double> total_size(exp.head_vars().size());
-		vector<int> num_tokens(exp.head_vars().size());
-		vector<Data> last_row;
-		for(auto& row: rows) {
-			uint i=0;
-			for(; i<last_row.size(); i++) 
-				if(last_row[i]!=row[i]) break;
-			for(; i<row.size(); i++) {
-				num_tokens[i] += 1;
-				total_size[i] += (row[i].get_dtype()==Dtype::String ?
-					row[i].get_str_val().size(): 4);
-			}
-			last_row = row;
+	set<int> allgids;
+	for(int i=0; i<exp.num_goals(); i++) allgids.insert(i);
+	CardinalityEstimator E(exp, allgids); 
+	
+	vector<pair<double, int>> card_vars;
+	for(auto hv: exp.head_vars()) 
+		card_vars.push_back(make_pair(E.var_card(hv), hv));
+	sort(card_vars.begin(), card_vars.end());
+	vector<int> hvar_order;
+	for(auto card_var: card_vars)
+		if(exp.is_bound_headvar(card_var.second))
+			hvar_order.push_back(card_var.second);
+	for(auto card_var: card_vars)
+		if(exp.is_free_headvar(card_var.second))
+			hvar_order.push_back(card_var.second);
+	auto cardinalities = E.get_cardinalities(hvar_order);
+	double num_combinations=1;
+	double num_blocks=1;
+	cout<<"index cardinalities: ";
+	for(uint i=0; i<hvar_order.size(); i++) {
+		num_combinations *= cardinalities[i];
+		if(exp.is_bound_headvar(hvar_order[i])) {
+			total_storage_cost += mem_storage_weight*num_combinations;
+			num_blocks = num_combinations;
 		}
-		for(uint i=0; i<num_tokens.size(); i++) {
-			total_storage_cost += total_size[i] * (i<prefix_cids.size() 
-				? mem_storage_weight : disk_storage_weight);
-			if (i>=prefix_cids.size())
-				avg_disk_block_size += total_size[i] * disk_storage_weight;
+		else {
+			avg_disk_block_size += disk_storage_weight*num_combinations;
+			total_storage_cost += disk_storage_weight*num_combinations;
 		}
-		int num_disk_blocks = 1;
-		if(prefix_cids.size()>0)
-			num_disk_blocks = num_tokens[prefix_cids.size()-1];
-		avg_disk_block_size/=num_disk_blocks;
+		cout<<cardinalities[i]<<" ";
 	}
-	rearranged_rows = rows;
+	cout<<endl;
+	avg_disk_block_size/=num_blocks;
 }
 
 double Index::storage_cost() const { return total_storage_cost;}
@@ -198,23 +205,11 @@ const Expression& Index::expression() const {
 	return exp;
 }
 
-const Expression::Table& Index::get_stats() const {
-	return stats;
-}
-
-string Index::show() const {
-	string result = exp.show()+"\nstats: \n";
-	result += stats.df.show() + "\n";
-	result += "Total storage cost: " + to_string(total_storage_cost) + "\n";
-	result += "Avg disk block size: " + to_string(avg_disk_block_size) + "\n";
-	result += "Sorted stats tuples: \n";
-	for(auto row: rearranged_rows) {
-		for(auto cell: row) {
-			result += "\t";
-			if(cell.get_dtype()==Dtype::String) result += cell.get_str_val();
-			else result += to_string(cell.get_int_val());
-		}
-		result += "\n";
+string Index::show(bool verbose) const {
+	string result = exp.show();
+	if(verbose) {
+		result += "\nTotal storage cost: " + to_string(total_storage_cost) + "\n";
+		result += "Avg disk block size: " + to_string(avg_disk_block_size) + "\n";
 	}
 	return result;
 }
@@ -282,7 +277,10 @@ index2query(index2query_arg) {
 	}
 }
 
-
+const set<uint>& ViewTuple::covered_goals(bool oe) const {
+	if(oe) return sc_goals;
+	else return wc_goals;
+}
 
 void ViewTuple::try_match(bool& match, set<int>& subcore,
 	set<int>& unmapped_goals, map<int, int>& mu) {
@@ -354,91 +352,99 @@ void ViewTuple::try_match(bool& match, set<int>& subcore,
 
 Plan::Plan(const Query& qry): query(qry) {}
 
-void Plan::execute_view_tuple(const ViewTuple& vt, vector<DataFrame>& df_vt_lst, 
-	vector<map<int, string>>& qvar2cid_lst) const {
+void Plan::execute_view_tuple(const ViewTuple& vt, list<DataFrame>& df_vt_lst, 
+	list<map<int, string>>& qvar2cid_lst) const {
 
-	auto sample_inputs = query.get_sample_inputs();
-	for(uint i=0; i<sample_inputs.size(); i++) {
-		auto inputs=sample_inputs.at(i);
-		auto table = vt.index.get_stats();
-		auto df_vt=table.df;
-		map<int, string> qvar2cid;
-		string prefix = to_string(stages.size());
-		for(auto& hvar_cid: table.headvar2cid) {
-			auto target_symbol = vt.index2query.at(hvar_cid.first);
-			if(target_symbol.isconstant)
-				df_vt.select(hvar_cid.second, target_symbol.dt);
-			else {
-				if(inputs.find(target_symbol.var)!=inputs.end()) 
-					df_vt.select(hvar_cid.second, inputs.at(target_symbol.var));
-				else {
-					auto var = target_symbol.var;
-					if(qvar2cid.find(var)==qvar2cid.end())
-						qvar2cid[var] = hvar_cid.second;
-					else
-						qvar2cid[var] = df_vt.self_join(qvar2cid.at(var), hvar_cid.second);
-				}
-			}
-		}
-		df_vt.prepend_to_cids(prefix);
-		for(auto it=qvar2cid.begin(); it!=qvar2cid.end(); it++)
-			it->second = prefix + "_" + it->second;
-		df_vt_lst.push_back(df_vt);
-		qvar2cid_lst.push_back(qvar2cid);
-	}
+	// auto sample_inputs = query.get_sample_inputs();
+	// for(uint i=0; i<sample_inputs.size(); i++) {
+	// 	auto inputs=sample_inputs.at(i);
+	// 	auto df_vt=table.df;
+	// 	map<int, string> qvar2cid;
+	// 	string prefix = to_string(stages.size());
+	// 	for(auto& hvar_cid: table.headvar2cid) {
+	// 		auto target_symbol = vt.index2query.at(hvar_cid.first);
+	// 		if(target_symbol.isconstant)
+	// 			df_vt.select(hvar_cid.second, target_symbol.dt);
+	// 		else {
+	// 			if(inputs.find(target_symbol.var)!=inputs.end()) 
+	// 				df_vt.select(hvar_cid.second, inputs.at(target_symbol.var));
+	// 			else {
+	// 				auto var = target_symbol.var;
+	// 				if(qvar2cid.find(var)==qvar2cid.end())
+	// 					qvar2cid[var] = hvar_cid.second;
+	// 				else
+	// 					qvar2cid[var] = df_vt.self_join(qvar2cid.at(var), hvar_cid.second);
+	// 			}
+	// 		}
+	// 	}
+	// 	df_vt.prepend_to_cids(prefix);
+	// 	for(auto it=qvar2cid.begin(); it!=qvar2cid.end(); it++)
+	// 		it->second = prefix + "_" + it->second;
+	// 	df_vt_lst.push_back(df_vt);
+	// 	qvar2cid_lst.push_back(qvar2cid);
+	// }
 }
 
-double Plan::try_append(const ViewTuple& vt, vector<list<DataFrame>>& new_stats,
-		vector<list<map<int, string>>>& new_queryvar2cid) const {
-	vector<DataFrame> df_vt_lst;
-	vector<map<int, string>> var2cid_lst;
+double Plan::try_append(const ViewTuple& vt, list<list<DataFrame>>& new_stats,
+		list<list<map<int, string>>>& new_queryvar2cid) const {
+	list<DataFrame> df_vt_lst;
+	list<map<int, string>> var2cid_lst;
 	execute_view_tuple(vt, df_vt_lst, var2cid_lst);
 	
 	double added_cost=0;
-	for(uint i=0; i<query.get_sample_inputs().size(); i++) {
-		if(stages.size()==0) {
-			new_stats.push_back(list<DataFrame>{df_vt_lst[i]});
-			new_queryvar2cid.push_back(list<map<int, string>>{var2cid_lst[i]});
+	if(stages.size()==0) {
+		auto df_vt_it=df_vt_lst.begin(); auto var2cid_it=var2cid_lst.begin();
+		for(; df_vt_it!=df_vt_lst.end(); df_vt_it++, var2cid_it++) {
+			new_stats.push_back(list<DataFrame>{*df_vt_it});
+			new_queryvar2cid.push_back(list<map<int, string>>{*var2cid_it});
 		}
-		else {
+	}
+	auto ns_it = new_stats.begin(); auto nq_it = new_queryvar2cid.begin();
+	auto df_vt_it=df_vt_lst.begin(); auto var2cid_it=var2cid_lst.begin();
+	for(; ns_it!=new_stats.end(); ns_it++, nq_it++, df_vt_it++, var2cid_it++) {
+		auto& new_stats_i = *ns_it;
+		auto& new_queryvar2cid_i = *nq_it;
+		auto& df_vt_lst_i = *df_vt_it;
+		auto& var2cid_lst_i = *var2cid_it;
+		if(stages.size()>0) {
 			list<list<DataFrame>::iterator> delete_df_its;
 			list<list<map<int, string>>::iterator> delete_qv2cid_its;
-			auto df_it=new_stats[i].begin(); auto qv2cid_it=new_queryvar2cid[i].begin();
-			for(; df_it!=new_stats[i].end(); df_it++, qv2cid_it++) {
+			auto df_it=new_stats_i.begin(); auto qv2cid_it=new_queryvar2cid_i.begin();
+			for(; df_it!=new_stats_i.end(); df_it++, qv2cid_it++) {
 				bool join=false;
 				for(auto& qvar_cid: *qv2cid_it)
-					if(var2cid_lst[i].find(qvar_cid.first)!=var2cid_lst[i].end()) {
+					if(var2cid_lst_i.find(qvar_cid.first)!=var2cid_lst_i.end()) {
 						join=true; break;
 					}
 				if(join) {
 					vector<pair<string, string>> this2df;
 					for(auto& qvar_cid: *qv2cid_it) {
-						if(var2cid_lst[i].find(qvar_cid.first)!=var2cid_lst[i].end()) 
-							this2df.push_back(make_pair(var2cid_lst[i].at(qvar_cid.first), 
+						if(var2cid_lst_i.find(qvar_cid.first)!=var2cid_lst_i.end()) 
+							this2df.push_back(make_pair(var2cid_lst_i.at(qvar_cid.first), 
 								qvar_cid.second));
 						else
-							var2cid_lst[i][qvar_cid.first] = qvar_cid.second;
+							var2cid_lst_i[qvar_cid.first] = qvar_cid.second;
 					}
-					df_vt_lst[i].join(*df_it, this2df);
+					df_vt_lst_i.join(*df_it, this2df);
 					delete_df_its.push_back(df_it);
 					delete_qv2cid_its.push_back(qv2cid_it);
 				}	
 			}
-			for(auto it: delete_df_its) new_stats[i].erase(it);
-			for(auto it: delete_qv2cid_its) new_queryvar2cid[i].erase(it);
-			new_stats[i].push_back(df_vt_lst[i]);
-			new_queryvar2cid[i].push_back(var2cid_lst[i]);
+			for(auto it: delete_df_its) new_stats_i.erase(it);
+			for(auto it: delete_qv2cid_its) new_queryvar2cid_i.erase(it);
+			new_stats_i.push_back(df_vt_lst_i);
+			new_queryvar2cid_i.push_back(var2cid_lst_i);
 		}
 		set<int> keep_qvars;
 		for(auto& ivar_qsymb: vt.index2query)
 			if(!ivar_qsymb.second.isconstant)
 				if(vt.index.expression().is_bound_headvar(ivar_qsymb.first) && 
-					new_queryvar2cid[i].begin()->find(ivar_qsymb.second.var)!=new_queryvar2cid[i].begin()->end())
+					new_queryvar2cid_i.begin()->find(ivar_qsymb.second.var)!=new_queryvar2cid_i.begin()->end())
 					keep_qvars.insert(ivar_qsymb.second.var);
 		int num_disk_seeks = 1;
 		if(keep_qvars.size()>0) {
-			auto stats_copy = new_stats[i].back();
-			for(auto& qvar_cid: *new_queryvar2cid[i].begin())
+			auto stats_copy = new_stats_i.back();
+			for(auto& qvar_cid: *new_queryvar2cid_i.begin())
 				if(keep_qvars.find(qvar_cid.first)==keep_qvars.end())
 					stats_copy.project_out(qvar_cid.second);
 			num_disk_seeks = stats_copy.num_unique_rows();
@@ -457,7 +463,8 @@ bool Plan::append(const ViewTuple& vt) {
 	double added_cost = try_append(vt, stats, queryvar2cid);
 
 	cost += added_cost;
-	stages.push_back(vt);
+	stages.push_back(&vt);
+	set_stages.insert(&vt);
 
 	for(auto gid: vt.sc_goals)
 		sc_goals.insert(gid);
@@ -468,6 +475,8 @@ bool Plan::append(const ViewTuple& vt) {
 	vector<set<int>> subcores;
 	for(auto subcore: vt.subcores)
 		subcores.push_back(subcore);
+
+	if(iscomplete()) complete=true;
 	return true;
 }
 
@@ -476,6 +485,8 @@ double Plan::time(const ViewTuple& vt) const {
 	auto new_queryvar2cid = queryvar2cid;
 	return try_append(vt, new_stats, new_queryvar2cid);
 }
+
+double Plan::time(const ViewTuple* vt) const {return time(*vt);}
 
 double Plan::current_cost() const {return cost;}
 
@@ -504,18 +515,25 @@ bool Plan::check_completeness(set<int>& covered_goals,
 }
 
 bool Plan::iscomplete() const {
+	if(complete) return complete;
 	if(((int)wc_goals.size())<query.expression().num_goals()) 
 		return false;
 	vector<set<int>> all_subcores;
-	for(auto& vt: stages)
-		for(auto& subcore: vt.subcores)
+	for(auto vt: stages)
+		for(auto& subcore: vt->subcores)
 			all_subcores.push_back(subcore);
 	set<int> covered_goals;
-	return check_completeness(covered_goals, all_subcores, 0);
+	bool result = check_completeness(covered_goals, all_subcores, 0);
+	
+	return result;
 }
 
-set<int> Plan::strongly_covered_goals() const {return sc_goals;}
-set<int> Plan::weakly_covered_goals() const {return wc_goals;}
+const set<uint>& Plan::strongly_covered_goals() const {return sc_goals;}
+const set<uint>& Plan::weakly_covered_goals() const {return wc_goals;}
+const set<uint>& Plan::covered_goals(bool oe) const {
+	if(oe) return sc_goals;
+	else return wc_goals;
+}
 
 int Plan::extra_sc_goals(const ViewTuple& vt) const {
 	int result=0;
@@ -533,19 +551,33 @@ int Plan::extra_wc_goals(const ViewTuple& vt) const {
 }
 
 string Plan::show() const {
-	string result="(complete = "+to_string(iscomplete())+")\n";
-	result += "ViewTuples:\n";
-	for(auto& vt: stages)
-		result += vt.show() + "\n";
-	result += "cost = " + to_string(cost) + "\n";
-	result += "strongly covered goals: ";
+	string result="{\n";
+	result += "\t(complete = "+to_string(complete)+")\n";
+	result += "\tViewTuples:\n";
+	for(auto vt: stages)
+		result += "\t\t" + vt->show() + "\n";
+	result += "\tcost = " + to_string(cost) + "\n";
+	result += "\tstrongly covered goals: ";
 	for(auto gid: sc_goals)
 		result += to_string(gid) + " ";
 	result += "\n";
 
-	result += "weakly covered goals: ";
+	result += "\nweakly covered goals: ";
 	for(auto gid: wc_goals)
 		result += to_string(gid) + " ";
-	result += "\n";
+	result += "\n}";
 	return result;
+}
+
+const ViewTuple* Plan::stage(uint i) const {
+	assert(i<stages.size());
+	return stages.at(i);
+}
+
+uint Plan::num_stages() const {
+	return stages.size();
+}
+
+bool Plan::has_vt(const ViewTuple* vt) const {
+	return set_stages.find(vt)!=set_stages.end();
 }

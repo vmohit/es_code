@@ -12,19 +12,37 @@
 #include <utility>
 #include <map>
 #include <list>
+#include <string>
+#include <queue>
+#include <algorithm>
+#include <cmath>
+#include <memory>
 
+using std::shared_ptr;
 using std::vector;
+using std::min;
 using esutils::generate_subsets;
+using esutils::set_intersection_size;
+using esutils::set_difference_inplace;
+using esutils::set_difference;
 using std::cout;
 using std::endl;
 using std::list;
 using std::map;
+using std::set;
+using std::to_string;
+using std::priority_queue;
+using std::string;
+using std::pair;
+using std::make_pair;
 
 // initializing parameters
 int Application::max_iters=1000;
-double Application::max_index_size=1000;
+double Application::max_index_size=10000;
 double Application::max_vt_lb=1000000;
-double Application::wt_storage=1;
+double Application::wt_storage=0.1;
+int Application::branch_factor=-1;
+uint Application::pick_fn=0;
 
 
 Application::Application(const vector<Query>& workload, const std::map<const BaseRelation*, 
@@ -33,13 +51,17 @@ Application::Application(const vector<Query>& workload, const std::map<const Bas
 		queries.push_back(query);
 	max_num_goals_index = k;
 	generate_candidates(br2table);
+	double num_nodes=0;
+	for(auto& query: workload) 
+		num_nodes += query.expression().num_goals();
+	approx_factor = 2*log(num_nodes)*log(num_nodes);
 }
 
 void Application::generate_candidates(const map<const BaseRelation*, const BaseRelation::Table*> br2table) {
 	// obtain complete plans for each query to estimate lower bound time estimates for view tuples
 	map<const Query*, Plan> complete_plans;
 	for(auto& query: queries) {
-		Index index(query.expression(), br2table);
+		Index index(query.expression());
 		Plan P(query);
 		bool found_vt=false;
 		for(auto& vt: query.get_view_tuples(index)) {
@@ -55,6 +77,7 @@ void Application::generate_candidates(const map<const BaseRelation*, const BaseR
 		assert(found_vt);
 		complete_plans.emplace(&query, P);
 	}
+	cout<<"->1<-\n";
 
 	// generate all subexpressions of every query to get an initial set of candidate index
 	for(auto& query: queries) {
@@ -74,11 +97,12 @@ void Application::generate_candidates(const map<const BaseRelation*, const BaseR
 						}
 					}
 					if(!match)
-						indexes.push_back(Index(exp, br2table));
+						indexes.push_back(Index(exp));
 				}
 			}
 		}
 	}
+	cout<<"->2<-\n";
 
 	// merge candidates with same join structure to generate more candidates
 	auto it=indexes.begin();
@@ -98,12 +122,13 @@ void Application::generate_candidates(const map<const BaseRelation*, const BaseR
 						}
 					}
 					if(!match)
-						indexes.push_back(Index(exp, br2table));
+						indexes.push_back(Index(exp));
 				}
 			}
 		}
 		it++;
 	}
+	cout<<"->3<-\n";
 
 	// drop a subset of head variables from each candidate to generate more candidates
 	int N=indexes.size();
@@ -128,10 +153,11 @@ void Application::generate_candidates(const map<const BaseRelation*, const BaseR
 					}
 				}
 				if(!match)
-					indexes.push_back(Index(expr, br2table));
+					indexes.push_back(Index(expr));
 			}
 		}
 	}
+	cout<<"->4<-\n";
 
 	// move a subset of free headvars to bound headvars
 	N=indexes.size();
@@ -156,10 +182,11 @@ void Application::generate_candidates(const map<const BaseRelation*, const BaseR
 					}
 				}
 				if(!match)
-					indexes.push_back(Index(expr, br2table));
+					indexes.push_back(Index(expr));
 			}
 		}
 	}
+	cout<<"->5<-\n";
 
 	// remove indexes that are too big
 	list<Index> feasible_indexes;
@@ -247,4 +274,281 @@ void Application::show_candidates() const {
 	// cout<<"Biggest ViewTuple: \n";
 	// cout<<biggest_vt->show()<<endl;
 
+}
+
+
+set<const ViewTuple*> Application::inner_greedy(const Index* index, uint& negc,
+	double& cost, const map<const Query*, set<uint>>& rem_goals, uint num_rem_goals,
+	const map<const Query*, Plan>& q2plan, bool oe) const {
+	
+	auto best_set = set<const ViewTuple*>{};
+	double best_cost = 0;  uint best_negc = 0;
+
+	for(uint target=1; target<=num_rem_goals; target++) {
+		auto cand_set = set<const ViewTuple*>{}; 
+		double cand_cost = index->storage_cost() * wt_storage; uint cand_negc=0; 
+		auto cand_rem_goals = rem_goals; // goals yet to be covered by cand
+		while(cand_negc<target) {
+			const ViewTuple* best_vt=NULL;	double best_vt_cost=-1;  uint best_vt_negc=0;
+			for(auto query_setvt: index_to_query2vt.at(index)) 
+				for(auto vt: query_setvt.second) {
+					double vt_cost = (oe ? q2plan.at(&(vt->query)).time(vt) 
+							: vt->cost_lb) * vt->query.weight();
+					uint vt_negc = min((uint) (target-cand_negc), 
+						set_intersection_size(vt->covered_goals(oe), cand_rem_goals[&(vt->query)]));
+					bool replace = ((best_vt==NULL || best_vt_negc==0) ? true: 
+						vt_negc==0 ? false: vt_cost/vt_negc < best_vt_cost/best_vt_negc);
+					if(replace) {
+						best_vt = vt; best_vt_cost = vt_cost; best_vt_negc = vt_negc;
+					}
+				}
+			if(best_vt==NULL || best_vt_negc==0)
+				break;
+			cand_set.insert(best_vt);
+			cand_cost += best_vt_cost;   
+			best_vt_negc = set_intersection_size(best_vt->covered_goals(oe), cand_rem_goals[&(best_vt->query)]);
+			cand_negc += best_vt_negc;   
+			set_difference_inplace(cand_rem_goals[&(best_vt->query)], best_vt->covered_goals(oe));
+		}
+		if(cand_negc<target)
+			break;
+		bool replace = (cand_negc==0 ? false : best_negc==0 ? true : cand_cost/cand_negc < best_cost/best_negc);
+		if(replace) {
+			best_set = cand_set; best_cost = cand_cost; best_negc = cand_negc;
+		}
+	}
+	cost = best_cost; negc = best_negc; 
+	return best_set;
+}
+
+
+Application::Design Application::optimize_wsc(const Design& Dinit, bool oe) const {
+	set<const Index*> stored_indexes = Dinit.stored_indexes;
+	map<const Query*, Plan> q2plan = Dinit.plans;
+	//cout<<"Got input design: "<<Dinit.show()<<endl;
+	map<const Query*, set<uint>> rem_goals;
+	uint num_rem_goals=0;
+	for(auto& query: queries) {
+		set<uint> query_goals;
+		for(uint i=0; (int) i<query.expression().num_goals(); i++)
+			query_goals.insert(i);
+		auto plan_goals = q2plan.at(&query).covered_goals(oe);
+		rem_goals[&query] = set_difference(query_goals, plan_goals);
+		num_rem_goals += rem_goals[&query].size();
+	}
+
+	while(num_rem_goals>0) {
+		pair<const Index*, set<const ViewTuple*>> best_set;
+		double best_cost=0; uint best_negc=0;   // cost and number of extra goals covered by best_set
+		for(auto it=index_to_query2vt.begin(); it!=index_to_query2vt.end(); it++) {
+			auto index = it->first;
+			pair<const Index*, set<const ViewTuple*>> cand_set;
+			double cand_cost=0; uint cand_negc = 0;
+			if(stored_indexes.find(index)==stored_indexes.end()) 
+				cand_set = make_pair(index, inner_greedy(index, cand_negc, cand_cost, 
+					rem_goals, num_rem_goals, q2plan, oe));
+			else {
+				const ViewTuple* best_vt;  uint best_vt_negc=0;  double best_vt_cost=0;
+				for(auto query_setvt: it->second) 
+					for(auto vt: query_setvt.second) {
+						double vt_cost = (oe ? q2plan.at(&(vt->query)).time(vt) 
+							: vt->cost_lb) * vt->query.weight();
+						double vt_negc = set_intersection_size(vt->covered_goals(oe), rem_goals[&(vt->query)]);
+						bool replace=(best_vt_negc==0 ? true : vt_negc==0? false : 
+										vt_cost/vt_negc < best_vt_cost/best_vt_negc);
+						if(replace) {
+							best_vt = vt; best_vt_negc=vt_negc; best_vt_cost=vt_cost;
+						} 
+					}
+				cand_set = make_pair(index, set<const ViewTuple*>{best_vt});
+				cand_cost = best_vt_cost;  cand_negc = best_vt_negc;
+			}
+			bool replace = ((best_set.first==NULL || best_negc==0) ? true: 
+				cand_negc==0 ? false : cand_cost/cand_negc < best_cost/best_negc);
+			if(replace) {
+				best_set = cand_set; best_cost = cand_cost;  best_negc = cand_negc;
+			}
+		}
+		assert(best_negc>0);
+		assert(best_set.first!=NULL);
+		assert(best_set.second.size()!=0);
+		num_rem_goals -= best_negc;
+		stored_indexes.insert(best_set.first);
+		for(auto vt: best_set.second) {
+			set_difference_inplace(rem_goals[&(vt->query)], vt->covered_goals(oe));
+			q2plan.at(&(vt->query)).append(*vt);
+		}
+	}
+	return Design(stored_indexes, q2plan);
+}
+
+Application::Design::Design(set<const Index*> inds, map<const Query*, Plan> ps) 
+: stored_indexes(inds), plans(ps) {
+	cost = 0;
+	num_goals_remaining = 0;
+	for(auto ind: inds)
+		cost += wt_storage * ind->storage_cost();
+	for(auto query_plan: ps) {
+		cost += query_plan.first->weight() * query_plan.second.current_cost();
+		num_goals_remaining += query_plan.first->expression().num_goals();
+		num_goals_remaining -= query_plan.second.weakly_covered_goals().size();
+	}
+}
+
+bool Application::Design::iscomplete() const {
+	for(auto it = plans.begin(); it!=plans.end(); it++)
+		if(!it->second.iscomplete())
+			return false;
+	return true;
+}
+
+void Application::Design::append(const ViewTuple* vt) {
+	num_goals_remaining -= plans.at(&(vt->query)).extra_wc_goals(*vt);
+	if(stored_indexes.find(&(vt->index))==stored_indexes.end()) {
+		cost += wt_storage * vt->index.storage_cost();
+		stored_indexes.insert(&(vt->index));
+	}
+	cost -= plans.at(&(vt->query)).current_cost();
+	plans.at(&(vt->query)).append(*vt);
+	cost += plans.at(&(vt->query)).current_cost();
+}
+
+string Application::Design::show() const {
+	string result = "{\n";
+	result+="\tcomplete = " + string(iscomplete() ? "true": "false");
+	result += "\n\tcost: "+to_string(cost)+", num_goals_remaining: "+to_string(num_goals_remaining);
+	result += "\n\tstored indexes:\n";
+	for(auto index: stored_indexes)
+		result += index->show(false)+"\n";
+	result += "\n\tplans:\n";
+	for(auto query_plan: plans) {
+		result += "\t\t" + query_plan.first->show() + " -> ";
+		result += query_plan.second.show()+"\n";
+	}
+	result += "}";
+	return result;
+}
+
+Application::Design Application::get_empty_design() const {
+	map<const Query*, Plan> empty_plans;
+	for(auto& query: queries)
+		empty_plans.emplace(&query, Plan(query));
+	return Design(set<const Index*>(), empty_plans);
+}
+
+double Application::ub_cost(const Application::Design& D) const {
+	return optimize_wsc(D, true).cost;
+}
+
+double Application::lb_cost(const Application::Design& D) const {
+	double added_cost=0;
+	Design Dp=optimize_wsc(D, false);
+	for(auto index: Dp.stored_indexes)
+		if(D.stored_indexes.find(index)==D.stored_indexes.end())
+			added_cost += wt_storage + index->storage_cost();
+	for(auto query_plan: Dp.plans)
+		for(uint i=D.plans.at(query_plan.first).num_stages(); 
+			i<query_plan.second.num_stages(); i++) {
+			added_cost += query_plan.first->weight() * query_plan.second.stage(i)->cost_lb;
+		}
+	return D.cost + added_cost/approx_factor;
+}
+
+double Application::get_priority(const Application::Design& D) const {
+	assert(pick_fn<3);
+	if(pick_fn==0) return -1*lb_cost(D);
+	if(pick_fn==1) return -1*ub_cost(D);
+	if(pick_fn==2) return -1*D.num_goals_remaining;
+	return 0;
+}
+
+list<Application::Design> Application::expand(const Application::Design& D) const {
+	if(D.cost>=Lub) return list<Design>();
+
+	list<Design> neighbors;
+	priority_queue<pair<double, const Design*>> best_designs;
+	for(auto query_ind2vt: query_to_index2vt) {
+		auto query = query_ind2vt.first;
+		for(auto ind_vt: query_ind2vt.second) {
+			for(auto vt: ind_vt.second) {
+				if(!D.plans.at(query).has_vt(vt) && !D.plans.at(query).iscomplete()) {
+					double new_cost = D.cost;
+					if(D.stored_indexes.find(ind_vt.first)==D.stored_indexes.end())
+						new_cost += wt_storage * ind_vt.first->storage_cost();
+					new_cost += query->weight() * D.plans.at(query).time(vt);
+					int extra_cov_goals = D.plans.at(query).extra_wc_goals(*(vt));
+					if(new_cost<Lub) {
+						neighbors.push_back(D);
+						neighbors.back().append(vt);
+						best_designs.push(make_pair(-1*neighbors.back().cost/extra_cov_goals, &neighbors.back()));
+					}
+				}
+			}
+		}
+	}
+
+	if(branch_factor>0) {
+		list<Application::Design> filtered_neighbors;
+		while(!best_designs.empty() && ((int) filtered_neighbors.size())<branch_factor) {
+			filtered_neighbors.push_back(*(best_designs.top().second));
+			best_designs.pop();
+		}
+		return filtered_neighbors;
+	}
+	return neighbors;
+}
+
+
+Application::Design Application::optimize() {
+	//return optimize_wsc(get_empty_design(), true);
+
+	Design Dinit = get_empty_design();
+	vector<pair<uint,double>> result;
+	cout<<"############ STARTING OPTIMIZE ###############\n";
+
+	priority_queue<pair<double, shared_ptr<Design>>> F;
+
+	F.push(make_pair(1.0, shared_ptr<Design>(new Design(Dinit))));
+	Design bestD = Dinit; 
+	Lub = std::numeric_limits<double>::max();
+	uint num_expanded=0;
+	while(!F.empty()) {
+		auto& topD = *(F.top().second);
+		F.pop();
+		if(topD.iscomplete()) {
+			if(topD.cost < Lub) {
+				Lub = topD.cost;
+				bestD = topD;
+				cout<<"num_expanded: "<<num_expanded<<", Lub: "<<Lub<<endl;
+				result.push_back(make_pair(num_expanded, Lub));
+			}
+		}
+		else {
+			auto neighbors = expand(topD);
+			for(auto& design: neighbors) {
+				num_expanded+=1;
+				double cost_lb = lb_cost(design);
+				Design ub_D = optimize_wsc(design, true);
+				double cost_ub = ub_D.cost;
+				if(cost_lb < Lub)  {
+					if(cost_ub < Lub) {
+						Lub = cost_ub;
+						bestD = ub_D;
+						cout<<"num_expanded: "<<num_expanded<<", Lub: "<<Lub<<endl;
+						result.push_back(make_pair(num_expanded, Lub));
+					}
+					double priority = -1*cost_lb;
+					if(pick_fn==1) priority = -1*cost_ub;
+					if(pick_fn==2) priority = -1*design.num_goals_remaining;
+					F.push(make_pair(priority, shared_ptr<Design>(new Design(design))));
+				}
+			}
+		}
+		if(max_iters>0)
+			if((int)num_expanded>max_iters)
+				break;
+	}
+	cout<<"Total number of states expanded: "<<num_expanded<<endl;
+	
+	return bestD;
 }

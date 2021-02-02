@@ -108,6 +108,22 @@ namespace esutils {
 			return forward.size();
 		}
 	};
+
+	//!< grace fully handle numbers like (n1 * n2 * ... * nk) / (d1 * d2 * ... * dp)
+	//!< all numbers in numerator and denominators must be positive
+	class ExtremeFraction {
+		std::multiset<double> numerators;
+		std::multiset<double> denominators;
+	public:
+		ExtremeFraction();
+		ExtremeFraction(std::vector<double> nums, std::vector<double> dens);
+		void multiply(const ExtremeFraction& ef);
+		void multiply(double val);
+		void divide(double val);
+		double eval(double floor=1e-15, double ceil=1e20) const; //!< return max(10^-5, min(10^9, actual_value))
+	};
+
+	double OneMinusXN(const ExtremeFraction& x, const ExtremeFraction& n);
 }
 
 #endif

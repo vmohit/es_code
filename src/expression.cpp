@@ -13,6 +13,7 @@
 #include <iostream>
 #include <cassert>
 #include <utility>
+#include <limits>
 
 using std::string;
 using std::vector;
@@ -28,6 +29,11 @@ using std::cout;
 using std::endl;
 using std::make_pair;
 using std::pair;
+using esutils::ExtremeFraction;
+using esutils::OneMinusXN;
+using std::min;
+using std::max;
+
 typedef DataFrame::ColumnMetaData ColumnMetaData;
 
 // functions of class Expression::Symbol
@@ -560,4 +566,83 @@ Expression Expression::merge_with(const Expression& exp) const {
 	}
 	result.compute_extrafeatures();
 	return result;
+}
+
+
+
+CardinalityEstimator::CardinalityEstimator(const Expression& exp_arg,
+		const set<int>& goals_arg) : exp(exp_arg) {
+
+	for(auto gid: goals_arg) 
+		add_goal(gid);
+
+	// for(auto gid: goals)
+	// 	cout<<goal2selectivity[gid]<<" ";
+	// cout<<endl;
+}
+
+void CardinalityEstimator::add_goal(int gid) {
+	if(goals.find(gid)!=goals.end())
+		return;
+	auto goal = exp.goal_at(gid);
+	ExtremeFraction x, n;
+	for(int i=0; i<goal.br->get_num_cols(); i++) {
+		x.divide(goal.br->card_at(i));
+		auto symbol = goal.symbols.at(i);
+		if(!symbol.isconstant) {
+			if(var2card.find(symbol.var)==var2card.end())
+				var2card[symbol.var] = goal.br->card_at(i);
+			var2card[symbol.var] = min(var2card[symbol.var], goal.br->card_at(i));
+		}
+	}
+	n.multiply(goal.br->num_tuples());
+	goal2selectivity[gid] = max(0.0, min(1.0, 1-OneMinusXN(x, n)));
+	goals.insert(gid);
+}
+
+
+vector<double> CardinalityEstimator::get_cardinalities(const vector<int>& varids) const {
+	set<int> select_vids;
+	vector<double> result;
+	for(auto varid: varids) {
+		double card = var2card.at(varid);
+		select_vids.insert(varid);
+		set<int> remaining_goals = goals;
+		while(!remaining_goals.empty()) {
+			set<int> considered_vars;
+			queue<int> considered_goals;
+			considered_goals.push(*remaining_goals.begin());
+			remaining_goals.erase(remaining_goals.begin());
+			ExtremeFraction x, n;
+			while(!considered_goals.empty()) {
+				int gid = considered_goals.front();
+				considered_goals.pop();
+				bool apply_goal=false;
+				for(auto symbol: exp.goal_at(gid).symbols) {
+					if(symbol.isconstant) continue;
+					int var = symbol.var;
+					if(var==varid) apply_goal=true;
+					if(select_vids.find(var)==select_vids.end()) {
+						apply_goal = true;
+						if(considered_vars.find(var)==considered_vars.end())
+							n.multiply(var2card.at(var));
+						considered_vars.insert(var);
+						for(auto g: exp.goals_containing(var))
+							if(remaining_goals.find(g)!=remaining_goals.end()) {
+								remaining_goals.erase(g);
+								considered_goals.push(g);
+							}
+					}
+				}
+				if (apply_goal) x.multiply(goal2selectivity.at(gid));
+			}
+			card *= max(0.0, min(1.0, 1-OneMinusXN(x, n)));
+		}
+		result.push_back(card);
+	}
+	return result;
+}
+
+double CardinalityEstimator::var_card(int var) const {
+	return var2card.at(var);
 }

@@ -88,4 +88,22 @@ private:
 	Expression(); //!< creates an empty expression
 };
 
+class CardinalityEstimator {
+	const Expression& exp;
+	std::set<int> goals;  //!< which goals to consider while estimating cost
+	std::map<int, double> goal2selectivity;
+	std::map<int, double> var2card;
+public:
+	CardinalityEstimator(const Expression& exp_arg,
+		const std::set<int>& goals_arg);
+	void add_goal(int gid);  
+	/** Get cardinalities of an array of variables in the given order
+	Example:- if Q(k, d) :- K(k, d) is the expression with there being
+	1000 distinct keywords, 100 distinct documents and 10000 tuples in K,
+	then if the vector of variables is [d, k] it returns [100, 100].
+	*/
+	double var_card(int var) const;  //!< returns maximum cardinality of a given variable
+	std::vector<double> get_cardinalities(const std::vector<int>& varids) const;
+};
+
 #endif

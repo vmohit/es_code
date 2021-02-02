@@ -12,14 +12,17 @@
 
 class Application {
 
-	// struct Design {
-	// 	std::set<const Index*> stored_indexes;
-	// 	std::map<const Query*, Plan> plans;
+	struct Design {
+		std::set<const Index*> stored_indexes;
+		std::map<const Query*, Plan> plans;
+		double cost;
+		int num_goals_remaining; //!< considering weakly covered goals
 
-	// 	Design(std::set<const Index*> inds, std::map<const Query*, Plan> ps);
-	// 	bool iscomplete() const;
-	// 	std::string show(const std::map<const MCD*, uint>& mcd_to_order) const;
-	// };
+		Design(std::set<const Index*> inds, std::map<const Query*, Plan> ps);
+		void append(const ViewTuple* vt);
+		bool iscomplete() const;
+		std::string show() const;
+	};
 
 	std::list<Query> queries;
 	std::list<Index> indexes;
@@ -29,20 +32,32 @@ class Application {
 	int max_num_goals_index;  //!< maximum number of goals in a candidate index's body
 	void generate_candidates(const std::map<const BaseRelation*, const BaseRelation::Table*> br2table);
 
+	Design get_empty_design() const;
+	Design optimize_wsc(const Design& Dinit, bool oe) const;
+	std::set<const ViewTuple*> inner_greedy(const Index* index, uint& negc,
+		double& cost, const std::map<const Query*, std::set<uint>>& rem_goals, uint num_rem_goals,
+		const std::map<const Query*, Plan>& q2plan, bool oe) const;
+	double approx_factor;
+	double Lub;
+
+	double lb_cost(const Design& D) const;
+	double ub_cost(const Design& D) const;
+	double get_priority(const Design& D) const;
+	std::list<Design> expand(const Design& D) const;
 public:
 	//!< parameters
 	static int max_iters; //!< max number of iterations
 	static double max_index_size;  //!< maximum size of a condidate index
 	static double max_vt_lb;  //!< maximum lower bound cost of a view tuple
 	static double wt_storage;  //!< relative weight of storage cost w.r.t time cost
+	static uint pick_fn;  //!< 0->best LB, 1->best UB, 2->least remaining goals
+	static int branch_factor; //!< max number of designs to return when calling expand. If it is -1, return all designs 
 
 	Application(const std::vector<Query>& workload, const std::map<const BaseRelation*, 
 		const BaseRelation::Table*> br2table, int k=3);
 	void show_candidates() const;
 
-	// void optimize();
-
-	// void show_design() const;
+	Design optimize();
 };
 
 #endif

@@ -17,8 +17,8 @@ typedef DataFrame::ColumnMetaData ColumnMetaData;
 // functions of class BaseRelation
 int BaseRelation::maxid=0;
 
-BaseRelation::BaseRelation(const string& nm, const vector<Column>& cols) : 
-id(0), name(nm), columns(cols) {
+BaseRelation::BaseRelation(const string& nm, const vector<Column>& cols, double numtuples) : 
+id(0), name(nm), columns(cols), numtups(numtuples) {
 	id = maxid++;
 }
 
@@ -39,9 +39,10 @@ Dtype BaseRelation::dtype_at(int pos) const {
 }
 
 string BaseRelation::show() const {
-	string result = "[id: "+to_string(id)+"] "+name+"(";
+	string result = "[id: "+to_string(id)+"]{card: "+to_string(int(numtups))+"} "+name+"(";
 	for(uint col=0; col<columns.size(); col++) {
 		result += (columns[col].dtype==Dtype::Int ? "Int_": "String_") + columns[col].name;
+		result += " (" + to_string(int(columns[col].cardinality)) + ")";
 		if(col+1!=columns.size())
 			result +=", ";
 	}
@@ -57,3 +58,11 @@ vector<ColumnMetaData> BaseRelation::get_colmds(const string& cid_prefix) const 
 
 BaseRelation::Table::Table(const BaseRelation* br_arg, const std::string& cid_prefix) :
 br(br_arg), df(br_arg->get_colmds(cid_prefix), vector<vector<Data>>()) {}
+
+double BaseRelation::card_at(int col) const {
+	return columns.at(col).cardinality;
+}
+
+double BaseRelation::num_tuples() const {
+	return numtups;
+}

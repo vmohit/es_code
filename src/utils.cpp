@@ -10,6 +10,7 @@
 #include <cassert>
 #include <set>
 #include <utility>
+#include <iostream>
 
 using std::set;
 using std::string;
@@ -17,6 +18,10 @@ using std::vector;
 using std::sort;
 using std::pair;
 using std::make_pair;
+using std::min;
+using std::max;
+using std::cout;
+using std::endl;
 
 bool esutils::remove_char(char c) {
 	if(c>='a' && c<='z')
@@ -169,4 +174,87 @@ vector<set<int>> esutils::generate_subsets(uint n, uint k) {
 		}
 	}
 	return result;
+}
+
+esutils::ExtremeFraction::ExtremeFraction(){}
+
+esutils::ExtremeFraction::ExtremeFraction(vector<double> nums, vector<double> dens) {
+	for(auto num: nums)
+		multiply (num);
+	for(auto den: dens)
+		divide (den);
+}
+
+void esutils::ExtremeFraction::multiply(double val) {
+	assert(val>0);
+	if(val<1) divide(1.0/val);
+	else {
+		auto it = denominators.find(val);
+		if(it==denominators.end())
+			numerators.insert(val);
+		else
+			denominators.erase(it);
+	}
+}
+
+void esutils::ExtremeFraction::divide(double val) {
+	assert(val>0);
+	if(val<1) multiply(1.0/val);
+	else {
+		auto it = numerators.find(val);
+		if(it==numerators.end())
+			denominators.insert(val);
+		else
+			numerators.erase(it);
+	}
+} 
+
+void esutils::ExtremeFraction::multiply(const esutils::ExtremeFraction& ef) {
+	for(auto num: ef.numerators)
+		multiply(num);
+	for(auto den: ef.denominators)
+		divide(den);
+}
+
+double esutils::ExtremeFraction::eval(double floor, double ceil) const {
+	double val = 1;
+	auto nit = numerators.begin();
+	auto dit = denominators.begin();
+	while (nit!=numerators.end() && dit!=denominators.end()) {
+		if(val<1) {
+			val *= (*nit);
+			nit++;
+		}
+		else {
+			val /= (*dit);
+			dit++;
+		}
+	}
+	while (nit!=numerators.end()) {
+		val *= (*nit);
+		nit++;
+		if(val>ceil)
+			return ceil;
+	}
+	while (dit!=denominators.end()) {
+		val /= (*dit);
+		dit++;
+		if(val<floor)
+			return floor;
+	}
+	return min(max(floor, val), ceil);
+}
+
+double esutils::OneMinusXN(const esutils::ExtremeFraction& ef_x, 
+	const esutils::ExtremeFraction& ef_n) {
+	
+	esutils::ExtremeFraction ef_nx = ef_x;
+	ef_nx.multiply(ef_n);
+	double x=ef_x.eval(), nx=ef_nx.eval();
+	//cout<<"nx: " << nx<<endl;
+	if (x<1 && nx<0.1)
+		return max(0.0, min(1-nx, 1.0));
+	if (x<0.1 && nx>5)
+		return exp(-1*nx);
+	return max(0.0, min(1.0, 1-nx + (nx*(nx-x))/2.0));
 }

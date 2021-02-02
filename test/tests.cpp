@@ -25,27 +25,63 @@ void test_dataframe();
 void test_exp_execution();
 void test_viewtuple_construction();
 void test_subcores();
-void test_candidate_generation();
+void test_application();
 void test_cost_model();
 void test_plan();
+void test_utils();
 
 int main() {
+	srand (time(NULL));
+	// test_utils();
 	// test_subcores();
 	// test_expression();
 	// test_dataframe();
 	// test_exp_execution();
 	// test_viewtuple_construction();
-	// test_candidate_generation();
+	// test_application();
 	test_cost_model();
 	// test_plan();
 	return 0;
 }
 
+void test_utils() {
+	ExtremeFraction frac;
+	frac.multiply(1e5);
+	frac.divide(1e20);
+	frac.multiply(1e10);
+	frac.multiply(1e6);
+	cout<<frac.eval()<<endl;
+	ExtremeFraction frac2;
+	frac2.multiply(1e-3);
+	frac2.divide(1e-4);
+	frac2.multiply(1e2);
+	cout<<frac2.eval()<<endl;
+	frac2.multiply(frac);
+	cout<<frac2.eval()<<endl;
+
+	double nk=1e5, Nk=1e7, Ne=8e6, Nc=1e5, nd=1e5, ne=8e4, nc=10;
+	ExtremeFraction x;
+	x.multiply(Nk); x.multiply(Ne); x.multiply(Nc);
+	x.divide(nk); x.divide(nd); x.divide(ne); x.divide(nd); x.divide(ne); x.divide(nc);
+	ExtremeFraction n;
+	n.multiply(ne); n.multiply(nd); n.multiply(nc);
+	cout<<nk*(1-OneMinusXN(x, n))<<endl;
+
+	n.divide(nc);
+	cout<<nc*(1-OneMinusXN(x, n))<<endl;
+
+	n.divide(nd);
+	cout<<nd*(1-OneMinusXN(x, n))<<endl;	
+
+	n.divide(ne);
+	cout<<ne*(1-OneMinusXN(x, n))<<endl;		
+}
+
 void test_expression() {
 	cout<<"--------------------Start test_expression()-------------------------\n\n";
-	vector<BaseRelation> brs {{"K", {{Dtype::Int, "k"}, {Dtype::Int, "d"}}},
-								{"E", {{Dtype::Int, "e"}, {Dtype::Int, "d"}}},
-								{"C", {{Dtype::Int, "e"}, {Dtype::String, "c"}}} };
+	vector<BaseRelation> brs {{"K", {{Dtype::String, "k", 1e5}, {Dtype::Int, "d", 1e5}}, 1e7},
+								{"E", {{Dtype::String, "e", 8e4}, {Dtype::Int, "d", 1e5}}, 8e6},
+								{"C", {{Dtype::String, "e", 8e4}, {Dtype::String, "c", 10}}, 1e5} };
 	for(auto &br: brs)
 		cout<<br.show()<<endl;
 
@@ -69,12 +105,12 @@ void test_expression() {
 
 	cout<<"\n\nTesting join merge of expressions:\n\n";
 
-	vector<BaseRelation> brs_2 {{"K", {{Dtype::Int, "k"}, {Dtype::Int, "d"}}},
-								{"R", {{Dtype::Int, "k"}, {Dtype::Int, "d"}}},
-								{"E", {{Dtype::Int, "e"}, {Dtype::Int, "d"}}},
-								{"C", {{Dtype::Int, "e"}, {Dtype::String, "c"}}},
-								{"T", {{Dtype::Int, "e"}, {Dtype::String, "c"}}},
-								{"F", {{Dtype::Int, "d"}, {Dtype::Int, "f"}}} };
+	vector<BaseRelation> brs_2 {{"K", {{Dtype::Int, "k", 1}, {Dtype::Int, "d", 1}}, 1},
+								{"R", {{Dtype::Int, "k", 1}, {Dtype::Int, "d", 1}}, 1},
+								{"E", {{Dtype::Int, "e", 1}, {Dtype::Int, "d", 1}}, 1},
+								{"C", {{Dtype::Int, "e", 1}, {Dtype::String, "c", 1}}, 1},
+								{"T", {{Dtype::Int, "e", 1}, {Dtype::String, "c", 1}}, 1},
+								{"F", {{Dtype::Int, "d", 1}, {Dtype::Int, "f", 1}}, 1} };
 	for(auto &br: brs_2)
 		cout<<br.show()<<endl;
 
@@ -128,9 +164,9 @@ void test_dataframe() {
 
 void test_exp_execution() {
 	cout<<"--------------------Start test_exp_execution()-------------------------\n\n";
-	vector<BaseRelation> brs {{"K", {{Dtype::Int, "k"}, {Dtype::Int, "d"}}},
-								{"E", {{Dtype::Int, "e"}, {Dtype::Int, "d"}}},
-								{"C", {{Dtype::Int, "e"}, {Dtype::Int, "c"}}} };
+	vector<BaseRelation> brs {{"K", {{Dtype::String, "k", 1e5}, {Dtype::Int, "d", 1e5}}, 1e7},
+								{"E", {{Dtype::String, "e", 8e4}, {Dtype::Int, "d", 1e5}}, 8e6},
+								{"C", {{Dtype::String, "e", 8e4}, {Dtype::String, "c", 10}}, 1e5} };
 
 	srand (time(NULL));
 
@@ -172,9 +208,9 @@ void test_exp_execution() {
 
 void test_viewtuple_construction() {
 	cout<<"--------------------Start test_viewtuple_construction()-------------------------\n\n";
-	vector<BaseRelation> brs {{"K", {{Dtype::Int, "k"}, {Dtype::Int, "d"}}},
-								{"E", {{Dtype::Int, "e"}, {Dtype::Int, "d"}}},
-								{"C", {{Dtype::Int, "e"}, {Dtype::String, "c"}}} };
+	vector<BaseRelation> brs {{"K", {{Dtype::String, "k", 1e5}, {Dtype::Int, "d", 1e5}}, 1e7},
+								{"E", {{Dtype::String, "e", 8e4}, {Dtype::Int, "d", 1e5}}, 8e6},
+								{"C", {{Dtype::String, "e", 8e4}, {Dtype::String, "c", 10}}, 1e5} };
 	for(auto &br: brs)
 		cout<<br.show()<<endl;
 
@@ -198,12 +234,12 @@ void test_viewtuple_construction() {
 	map<std::string, const BaseRelation*> name2br {{"K", &brs[0]}, {"E", &brs[1]}, {"C", &brs[2]}};
 	string query_str = "Qent[k1, k2](e, c) :- K(k1, d); K(k2, d); E(e, d); C(e, c); C(e, str_phone)";
 	Expression query_expr(query_str, name2br);
-	Query query(query_expr, br2table);
+	Query query(query_expr, 1, br2table);
 	cout<<query.expression().show()<<endl;  
 
 	string einv_str = "EINV[k1, k2](e, c) :- K(k1, d); K(k2, d); E(e, d); C(e, c)";
 	Expression einv_expr(einv_str, name2br);
-	Index einv(einv_expr, br2table);
+	Index einv(einv_expr);
 	cout<<einv.expression().show()<<endl; 
 
 	for(auto vt: query.get_view_tuples(einv))
@@ -212,9 +248,9 @@ void test_viewtuple_construction() {
 
 void test_subcores() {
 	cout<<"--------------------Start test_subcores()-------------------------\n\n";
-	vector<BaseRelation> brs {{"car", {{Dtype::Int, "Make"}, {Dtype::String, "Dealer"}}},
-								{"loc", {{Dtype::String, "Dealer"}, {Dtype::Int, "City"}}},
-								{"part", {{Dtype::Int, "Store"}, {Dtype::Int, "Make"}, {Dtype::Int, "City"}}} };
+	vector<BaseRelation> brs {{"car", {{Dtype::Int, "Make", 1}, {Dtype::String, "Dealer", 1}}, 1},
+								{"loc", {{Dtype::String, "Dealer", 1}, {Dtype::Int, "City", 1}}, 1},
+								{"part", {{Dtype::Int, "Store", 1}, {Dtype::Int, "Make", 1}, {Dtype::Int, "City", 1}}, 1} };
 	for(auto &br: brs)
 		cout<<br.show()<<endl;
 
@@ -238,7 +274,7 @@ void test_subcores() {
 	map<std::string, const BaseRelation*> name2br {{"car", &brs[0]}, {"loc", &brs[1]}, {"part", &brs[2]}};
 	string query_str = "q1[S](C) :- car(M, str_anderson); loc(str_anderson, C); part(S, M, C)";
 	Expression query_expr(query_str, name2br);
-	Query query(query_expr, br2table);
+	Query query(query_expr, 1, br2table);
 	cout<<query.expression().show()<<endl;  
 
 	vector<string> index_strs {
@@ -250,7 +286,7 @@ void test_subcores() {
 	};
 	for(string index_str: index_strs) {
 		Expression index_expr(index_str, name2br);
-		Index index(index_expr, br2table);
+		Index index(index_expr);
 		cout<<"Index: ";
 		cout<<index.expression().show()<<endl<<endl; 
 
@@ -260,37 +296,34 @@ void test_subcores() {
 	}
 }
 
+vector<vector<Data>> generate_random_data(int num_tuples,
+	vector<int> col_cardinalities) {
 
+	vector<vector<Data>> result;
+	for(int i=0; i<num_tuples; i++) {
+		vector<Data> row;
+		for(uint j=0; j<col_cardinalities.size(); j++)
+			row.push_back(rand() % col_cardinalities[j]);
+		result.push_back(row);
+	}
+	return result;
+}
 
-
-void test_candidate_generation() {
+void test_application() {
 	cout<<"--------------------Start test_candidate_generation()-------------------------\n\n";
-	vector<BaseRelation> brs {{"K", {{Dtype::String, "k"}, {Dtype::Int, "d"}}},
-								{"E", {{Dtype::String, "e"}, {Dtype::Int, "d"}}},
-								{"C", {{Dtype::String, "e"}, {Dtype::String, "c"}}} };
+	vector<BaseRelation> brs {{"K", {{Dtype::String, "k", 1e5}, {Dtype::Int, "d", 1e5}}, 1e7},
+								{"E", {{Dtype::String, "e", 8e4}, {Dtype::Int, "d", 1e5}}, 8e6},
+								{"C", {{Dtype::String, "e", 8e4}, {Dtype::String, "c", 10}}, 1e5} };
 	cout<<"Base Relations: \n";
 	for(auto &br: brs)
 		cout<<br.show()<<endl;
-	vector<string> docs {"long red #ferrari:car on long road", "long blue #ferrari:car in #paris:city", 
-						"blue #porche:car on red carpet in #dubai:city", "red porche short race", "blue #bugatti:car road"};
-	vector<vector<Data>> ktups, etups, ctups;
-	int did = 0;
-	for(auto doc: docs) {
-		auto tokens = split(doc, " ");
-		for(uint i=0; i<tokens.size(); i++) {
-			if(tokens[i][0]=='#') {
-				auto parts = split(split(tokens[i], "#")[1], ":");
-				etups.push_back(vector<Data>{Data(parts[0]), Data(did)});
-				ctups.push_back(vector<Data>{Data(parts[0]), Data(parts[1])});
-			}
-			else
-				ktups.push_back(vector<Data>{Data(tokens[i]), Data(did)});
-		}
-		did += 1;
-	}
-	vector<ColumnMetaData> kcolmds {{"k", Dtype::String}, {"d", Dtype::Int}};
-	vector<ColumnMetaData> ecolmds {{"e", Dtype::String}, {"d", Dtype::Int}};
-	vector<ColumnMetaData> ccolmds {{"e", Dtype::String}, {"c", Dtype::String}};
+
+	auto ktups = generate_random_data(1000, vector<int>{100, 100});
+	auto etups = generate_random_data(800, vector<int>{80, 100}); 
+	auto ctups = generate_random_data(160, vector<int>{80, 5});
+	vector<ColumnMetaData> kcolmds {{"k", Dtype::Int}, {"d", Dtype::Int}};
+	vector<ColumnMetaData> ecolmds {{"e", Dtype::Int}, {"d", Dtype::Int}};
+	vector<ColumnMetaData> ccolmds {{"e", Dtype::Int}, {"c", Dtype::Int}};
 	vector<DataFrame> dfs{{kcolmds, ktups}, {ecolmds, etups}, {ccolmds, ctups}};
 	vector<BaseRelation::Table> tabs;
 	for(uint i=0; i<brs.size(); i++) {
@@ -308,105 +341,64 @@ void test_candidate_generation() {
 	string query = "Qent[k1, k2, c](d, e) :- K(k1, d); K(k2, d); E(e, d); C(e, c)";
 	Expression expr(query, name2br);
 	cout<<"Query: ";
-	Query Q(expr, br2table);
+	Query Q(expr, 1, br2table, 10);
 	cout<<Q.show()<<endl;  
 
-	Application app(vector<Query>{Q}, br2table, 3);
+	Application app(vector<Query>{Q}, br2table, 1);
 	app.show_candidates();
+	cout<<app.optimize().show()<<endl;
 }
-
-
 
 
 
 void test_cost_model() {
 	cout<<"--------------------Start test_cost_model()-------------------------\n\n";
-	vector<BaseRelation> brs {{"K", {{Dtype::String, "k"}, {Dtype::Int, "d"}}},
-								{"E", {{Dtype::String, "e"}, {Dtype::Int, "d"}}},
-								{"C", {{Dtype::String, "e"}, {Dtype::String, "c"}}} };
+	vector<BaseRelation> brs {{"K", {{Dtype::String, "k", 1e5}, {Dtype::Int, "d", 1e5}}, 1e7},
+								{"E", {{Dtype::String, "e", 8e4}, {Dtype::Int, "d", 1e5}}, 8e6},
+								{"C", {{Dtype::String, "e", 8e4}, {Dtype::String, "c", 10}}, 1e5} };
 	cout<<"Base Relations: \n";
 	for(auto &br: brs)
 		cout<<br.show()<<endl;
-	vector<string> docs {"long red #ferrari:car on long road", "long blue #ferrari:car in #paris:city", 
-						"blue #porche:car on red carpet in #dubai:city", "red porche short race", "blue #bugatti:car road"};
-	vector<vector<Data>> ktups, etups, ctups;
-	int did = 0;
-	for(auto doc: docs) {
-		auto tokens = split(doc, " ");
-		for(uint i=0; i<tokens.size(); i++) {
-			if(tokens[i][0]=='#') {
-				auto parts = split(split(tokens[i], "#")[1], ":");
-				etups.push_back(vector<Data>{Data(parts[0]), Data(did)});
-				ctups.push_back(vector<Data>{Data(parts[0]), Data(parts[1])});
-			}
-			else
-				ktups.push_back(vector<Data>{Data(tokens[i]), Data(did)});
-		}
-		did += 1;
-	}
-	vector<ColumnMetaData> kcolmds {{"k", Dtype::String}, {"d", Dtype::Int}};
-	vector<ColumnMetaData> ecolmds {{"e", Dtype::String}, {"d", Dtype::Int}};
-	vector<ColumnMetaData> ccolmds {{"e", Dtype::String}, {"c", Dtype::String}};
-	vector<DataFrame> dfs{{kcolmds, ktups}, {ecolmds, etups}, {ccolmds, ctups}};
-	vector<BaseRelation::Table> tabs;
-	for(uint i=0; i<brs.size(); i++) {
-		BaseRelation::Table tab(&brs[i], "");
-		tab.df = dfs[i];
-		tabs.push_back(tab);
-	}
-
-	map<const BaseRelation*, const BaseRelation::Table*> br2table;
-	for(uint i=0; i<brs.size(); i++) {
-		br2table[&brs[i]] = &tabs[i];
-	}
 
 	map<std::string, const BaseRelation*> name2br {{"K", &brs[0]}, {"E", &brs[1]}, {"C", &brs[2]}};
 	string query = "Qent[k1, k2, c](d, e) :- K(k1, d); K(k2, d); E(e, d); C(e, c)";
 	Expression expr(query, name2br);
-	cout<<"Query: ";
-	Query Q(expr, br2table, 10);
-	cout<<Q.show()<<endl;  
+	
+	CardinalityEstimator E{expr, {0, 1, 2, 3}};
+	vector<string> varnames{"k1", "d", "k2", "e", "c"};
+	vector<int> varids;
+	for(auto name: varnames)
+		varids.push_back(expr.name_to_var(name));
+	vector<double> cards = E.get_cardinalities(varids);
+	for(uint i=0; i<varids.size(); i++)
+		cout<<varnames[i]<<": "<<cards[i]<<", ";
+	cout<<endl;
 
-	Index inv{{"INV[k](d) :- K(k, d)", name2br}, br2table};
-	cout<<inv.show()<<endl;
+	Index inv{{"INV[k](d) :- K(k, d)", name2br}};
+	cout<<inv.storage_cost()<<" "<<inv.avg_block_size()<<endl;
 
-	ViewTuple vt_inv1 = *Q.get_view_tuples(inv).begin();
-	cout<<vt_inv1.show()<<endl;
-	ViewTuple vt_inv2 = *(++Q.get_view_tuples(inv).begin());
-	cout<<vt_inv2.show()<<endl;
+	Index i1{{"INV[](d) :- K(k, d)", name2br}};
+	cout<<i1.storage_cost()<<" "<<i1.avg_block_size()<<endl;
 
-	Index dinv{{"DINV[d](e, c) :- E(e, d); C(e, c)", name2br}, br2table};
-	cout<<dinv.show()<<endl;
+	i1 = Index{{"INV[k]() :- K(k, d)", name2br}};
+	cout<<i1.storage_cost()<<" "<<i1.avg_block_size()<<endl;
 
-	ViewTuple vt_dinv = *(Q.get_view_tuples(dinv).begin());
-	cout<<vt_dinv.show()<<endl;
+	i1 = Index{{"EINV[k](d, e) :- K(k, d); E(e, d)", name2br}};
+	cout<<i1.storage_cost()<<" "<<i1.avg_block_size()<<endl;
 
-	Plan P(Q);
-	P.append(vt_inv1);
-	cout<<P.current_cost()<<endl;
-	cout<<P.time(vt_dinv)<<endl;
-	P.append(vt_inv2);
-	cout<<P.current_cost()<<endl;
-	cout<<P.time(vt_dinv)<<endl;
+	i1 = Index{{"EINV[k, c](d, e) :- K(k, d); E(e, d); C(e, c)", name2br}};
+	cout<<i1.storage_cost()<<" "<<i1.avg_block_size()<<endl;
 
-	Index cind{{"C[c](e) :- C(e, c)", name2br}, br2table};
-	cout<<cind.show()<<endl;
-
-	ViewTuple vt_cind = *(Q.get_view_tuples(cind).begin());
-	cout<<vt_cind.show()<<endl;
-	cout<<P.time(vt_cind)<<endl;
-
-	P.append(vt_dinv);
-	cout<<P.time(vt_cind)<<endl;
-	cout<<P.current_cost()<<endl;
+	i1 = Index{{"DINV[d](e, c) :- E(e, d); C(e, c)", name2br}};
+	cout<<i1.storage_cost()<<" "<<i1.avg_block_size()<<endl;
 }
 
 
 void test_plan() {
 	cout<<"--------------------Start test_subcores()-------------------------\n\n";
-	vector<BaseRelation> brs {{"car", {{Dtype::Int, "Make"}, {Dtype::String, "Dealer"}}},
-								{"loc", {{Dtype::String, "Dealer"}, {Dtype::Int, "City"}}},
-								{"part", {{Dtype::Int, "Store"}, {Dtype::Int, "Make"}, {Dtype::Int, "City"}}} };
+	vector<BaseRelation> brs {{"car", {{Dtype::Int, "Make", 1}, {Dtype::String, "Dealer", 1}}, 1},
+								{"loc", {{Dtype::String, "Dealer", 1}, {Dtype::Int, "City", 1}}, 1},
+								{"part", {{Dtype::Int, "Store", 1}, {Dtype::Int, "Make", 1}, {Dtype::Int, "City", 1}}, 1} };
 	for(auto &br: brs)
 		cout<<br.show()<<endl;
 
@@ -432,7 +424,7 @@ void test_plan() {
 	map<std::string, const BaseRelation*> name2br {{"car", &brs[0]}, {"loc", &brs[1]}, {"part", &brs[2]}};
 	string query_str = "q1[](S) :- car(M, D); loc(D, C); part(S, M, C)";
 	Expression query_expr(query_str, name2br);
-	Query query(query_expr, br2table);
+	Query query(query_expr, 1, br2table);
 	cout<<query.expression().show()<<endl;  
 
 	vector<string> index_strs {
@@ -442,23 +434,23 @@ void test_plan() {
 		"v4[](D, C, S) :- car(M, D); part(S, M, C)",
 		"v5[D](S, M) :- loc(D, C); part(S, M, C)"
 	};
-	Index v1{{index_strs[0], name2br}, br2table};
+	Index v1{{index_strs[0], name2br}};
 	ViewTuple vt1  = *(query.get_view_tuples(v1).begin());
 	cout<<vt1.show()<<endl;
 
-	Index v2{{index_strs[1], name2br}, br2table};
+	Index v2{{index_strs[1], name2br}};
 	ViewTuple vt2  = *(query.get_view_tuples(v2).begin());
 	cout<<vt2.show()<<endl;
 
-	Index v3{{index_strs[2], name2br}, br2table};
+	Index v3{{index_strs[2], name2br}};
 	ViewTuple vt3  = *(query.get_view_tuples(v3).begin());
 	cout<<vt3.show()<<endl;
 
-	Index v4{{index_strs[3], name2br}, br2table};
+	Index v4{{index_strs[3], name2br}};
 	ViewTuple vt4  = *(query.get_view_tuples(v4).begin());
 	cout<<vt4.show()<<endl;
 
-	Index v5{{index_strs[4], name2br}, br2table};
+	Index v5{{index_strs[4], name2br}};
 	ViewTuple vt5  = *(query.get_view_tuples(v5).begin());
 	cout<<vt5.show()<<endl;
 

@@ -16,6 +16,7 @@ public:
 	struct Column {
 		Dtype dtype;
 		std::string name;
+		double cardinality;
 	};
 
 	/**A dataframe that is tied together to a base relation*/
@@ -32,14 +33,15 @@ private:
 	int id;
 	std::string name;
 	std::vector<Column> columns; 
-	
+	double numtups;
 public:
-	//BaseRelation(int numtups);
-	BaseRelation(const std::string& nm, const std::vector<Column>& cols);
+	BaseRelation(const std::string& nm, const std::vector<Column>& cols, double numtuples);
 	int get_num_cols() const;
 	int get_id() const;
 	std::string get_name() const;
 	Dtype dtype_at(int col) const;
+	double card_at(int col) const;
+	double num_tuples() const;
 	std::string show() const;
 
 private:
