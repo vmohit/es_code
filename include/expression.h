@@ -10,6 +10,7 @@
 #include <string>
 #include <map>
 #include <set>
+#include <utility>
 
 
 /**Class to create and manipulate conjunctive expressions used in index definitions and queries.*/
@@ -80,6 +81,10 @@ public:
 	void make_headvar_bound(int headvar);
 	bool is_free_headvar(int var) const;
 	bool is_bound_headvar(int var) const;
+	const std::set<int>& bound_headvars() const;
+
+	void select(int var, Data dt); //!< updates the expression by performing selection. var must be a headvar
+	int join(int var1, int var2); //!< performs join and returns the variable that is kept. var1 and var2 must be headvars
 
 	const std::string& get_join_merge_sketch() const;
 	bool empty() const;
@@ -89,21 +94,29 @@ private:
 };
 
 class CardinalityEstimator {
-	const Expression& exp;
+	Expression exp;
 	std::set<int> goals;  //!< which goals to consider while estimating cost
 	std::map<int, double> goal2selectivity;
 	std::map<int, double> var2card;
 public:
+	CardinalityEstimator(const Expression& exp_arg);  //!< considers all the goals
 	CardinalityEstimator(const Expression& exp_arg,
 		const std::set<int>& goals_arg);
 	void add_goal(int gid);  
+	const std::set<int> considered_goals() const;
+	double var_card(int var) const;  //!< returns maximum cardinality of a given variable
+	bool is_present(int var) const;  //!< check if a variable is present in the considered goals
 	/** Get cardinalities of an array of variables in the given order
 	Example:- if Q(k, d) :- K(k, d) is the expression with there being
 	1000 distinct keywords, 100 distinct documents and 10000 tuples in K,
 	then if the vector of variables is [d, k] it returns [100, 100].
 	*/
-	double var_card(int var) const;  //!< returns maximum cardinality of a given variable
 	std::vector<double> get_cardinalities(const std::vector<int>& varids) const;
+	std::vector<double> get_cardinalities(const std::vector<int>& varids,
+		const std::set<int>& pre_select_vars) const;  //!< assume that selections are performed over select vars before computing cardinalities
+	const Expression& expression() const;
+
+	double get_est_num_tuples() const;
 };
 
 #endif

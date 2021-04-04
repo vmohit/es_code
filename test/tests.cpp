@@ -14,6 +14,9 @@
 #include <vector>
 #include <cstdlib>
 #include <ctime>
+#include <cstdio>
+#include <string.h> 
+#include <stdio.h>
 
 using namespace std;
 using namespace esutils;
@@ -29,8 +32,9 @@ void test_application();
 void test_cost_model();
 void test_plan();
 void test_utils();
+void run_experiment_es(double wt_storage);
 
-int main() {
+int main(int argc, char** argv) {
 	srand (time(NULL));
 	// test_utils();
 	// test_subcores();
@@ -38,13 +42,53 @@ int main() {
 	// test_dataframe();
 	// test_exp_execution();
 	// test_viewtuple_construction();
+	// test_cost_model();
 	// test_application();
-	test_cost_model();
 	// test_plan();
+
+	assert(argc>=3);
+	if(strcmp(argv[1], "es")==0)
+		run_experiment_es(atof(argv[2]));
+	else
+		assert(false);
 	return 0;
 }
 
+void run_experiment_es(double wt_storage) {
+	Application::wt_storage=wt_storage;
+
+	cout<<"--------------------Start test_candidate_generation()-------------------------\n\n";
+	vector<BaseRelation> brs {{"K", {{Dtype::String, "k", 1e5}, {Dtype::Int, "d", 1e5}}, 1e7},
+								{"E", {{Dtype::String, "e", 8e4}, {Dtype::Int, "d", 1e5}}, 8e6},
+								{"C", {{Dtype::String, "e", 8e4}, {Dtype::String, "c", 10}}, 1e5} };
+	cout<<"Base Relations: \n";
+	for(auto &br: brs)
+		cout<<br.show()<<endl;
+
+	map<std::string, const BaseRelation*> name2br {{"K", &brs[0]}, {"E", &brs[1]}, {"C", &brs[2]}};
+	Query Qk2k(Expression("Q[k1, k2](d, k) :- K(k1, d); K(k2, d); K(k, d)", name2br), 1);
+	Query Qk2d(Expression("Q[k1, k2](d) :- K(k1, d); K(k2, d)", name2br), 1);
+	Query Qk2e(Expression("Q[k1, k2, c](d, e) :- E(e, d); C(e, c); K(k1, d); K(k2, d)", name2br), 1);
+	Query Qd2k(Expression("Q[d1, d2](k) :- K(k, d1); K(k, d2)", name2br), 1);
+	Query Qd2d(Expression("Q[d1, d2](k, d) :- K(k, d1); K(k, d2); K(k, d)", name2br), 1);
+	Query Qd2e(Expression("Q[d1, d2](e) :- E(e, d1); E(e, d2)", name2br), 1);
+	Query Qe2k(Expression("Q[e1, e2](d, k) :- E(e1, d); E(e2, d); K(k, d)", name2br), 1);
+	Query Qe2d(Expression("Q[e1, e2](d) :- E(e1, d); E(e2, d)", name2br), 1);
+	Query Qe2e(Expression("Q[e1, e2, c](d, e) :- E(e1, d); E(e2, d); C(e, c); E(e, d)", name2br), 1);
+
+	Application app(vector<Query>{Qk2k, Qk2d, Qk2e, Qd2k, Qd2d, Qd2e, Qe2k, Qe2d, Qe2e}, 4);
+	app.show_candidates();
+	auto design_ub=app.optimize_wsc_standalone(true);
+	auto design_lb=app.optimize_wsc_standalone(false);
+	cout<<design_ub.show()<<endl;
+	cout<<design_lb.show()<<endl;
+	cout<<design_ub.cost<<endl;
+	cout<<design_lb.lb_cost()<<endl;
+}
+
+
 void test_utils() {
+	cout<<"--------------------Start test_utils()-------------------------\n\n";
 	ExtremeFraction frac;
 	frac.multiply(1e5);
 	frac.divide(1e20);
@@ -234,7 +278,7 @@ void test_viewtuple_construction() {
 	map<std::string, const BaseRelation*> name2br {{"K", &brs[0]}, {"E", &brs[1]}, {"C", &brs[2]}};
 	string query_str = "Qent[k1, k2](e, c) :- K(k1, d); K(k2, d); E(e, d); C(e, c); C(e, str_phone)";
 	Expression query_expr(query_str, name2br);
-	Query query(query_expr, 1, br2table);
+	Query query(query_expr, 1);
 	cout<<query.expression().show()<<endl;  
 
 	string einv_str = "EINV[k1, k2](e, c) :- K(k1, d); K(k2, d); E(e, d); C(e, c)";
@@ -274,7 +318,7 @@ void test_subcores() {
 	map<std::string, const BaseRelation*> name2br {{"car", &brs[0]}, {"loc", &brs[1]}, {"part", &brs[2]}};
 	string query_str = "q1[S](C) :- car(M, str_anderson); loc(str_anderson, C); part(S, M, C)";
 	Expression query_expr(query_str, name2br);
-	Query query(query_expr, 1, br2table);
+	Query query(query_expr, 1);
 	cout<<query.expression().show()<<endl;  
 
 	vector<string> index_strs {
@@ -318,35 +362,21 @@ void test_application() {
 	for(auto &br: brs)
 		cout<<br.show()<<endl;
 
-	auto ktups = generate_random_data(1000, vector<int>{100, 100});
-	auto etups = generate_random_data(800, vector<int>{80, 100}); 
-	auto ctups = generate_random_data(160, vector<int>{80, 5});
-	vector<ColumnMetaData> kcolmds {{"k", Dtype::Int}, {"d", Dtype::Int}};
-	vector<ColumnMetaData> ecolmds {{"e", Dtype::Int}, {"d", Dtype::Int}};
-	vector<ColumnMetaData> ccolmds {{"e", Dtype::Int}, {"c", Dtype::Int}};
-	vector<DataFrame> dfs{{kcolmds, ktups}, {ecolmds, etups}, {ccolmds, ctups}};
-	vector<BaseRelation::Table> tabs;
-	for(uint i=0; i<brs.size(); i++) {
-		BaseRelation::Table tab(&brs[i], "");
-		tab.df = dfs[i];
-		tabs.push_back(tab);
-	}
-
-	map<const BaseRelation*, const BaseRelation::Table*> br2table;
-	for(uint i=0; i<brs.size(); i++) {
-		br2table[&brs[i]] = &tabs[i];
-	}
-
 	map<std::string, const BaseRelation*> name2br {{"K", &brs[0]}, {"E", &brs[1]}, {"C", &brs[2]}};
-	string query = "Qent[k1, k2, c](d, e) :- K(k1, d); K(k2, d); E(e, d); C(e, c)";
+	string query = "Qent[k1, k2, c](d, e) :- E(e, d); C(e, c); K(k1, d); K(k2, d)";
 	Expression expr(query, name2br);
 	cout<<"Query: ";
-	Query Q(expr, 1, br2table, 10);
+	Query Q(expr, 1);
 	cout<<Q.show()<<endl;  
 
-	Application app(vector<Query>{Q}, br2table, 1);
+	Application app(vector<Query>{Q}, 4);
 	app.show_candidates();
-	cout<<app.optimize().show()<<endl;
+	auto design_ub=app.optimize_wsc_standalone(true);
+	auto design_lb=app.optimize_wsc_standalone(false);
+	cout<<design_ub.show()<<endl;
+	cout<<design_lb.show()<<endl;
+	cout<<design_ub.cost<<endl;
+	cout<<design_lb.lb_cost()<<endl;
 }
 
 
@@ -361,11 +391,12 @@ void test_cost_model() {
 		cout<<br.show()<<endl;
 
 	map<std::string, const BaseRelation*> name2br {{"K", &brs[0]}, {"E", &brs[1]}, {"C", &brs[2]}};
-	string query = "Qent[k1, k2, c](d, e) :- K(k1, d); K(k2, d); E(e, d); C(e, c)";
-	Expression expr(query, name2br);
+	string q_str = "Qent[k1, k2](d, e) :- K(k1, d); K(k2, d); E(e, d); C(e, str_email)";
+	Expression expr(q_str, name2br);
+	Query query(expr, 1);
 	
 	CardinalityEstimator E{expr, {0, 1, 2, 3}};
-	vector<string> varnames{"k1", "d", "k2", "e", "c"};
+	vector<string> varnames{"k1", "d", "k2", "e"};
 	vector<int> varids;
 	for(auto name: varnames)
 		varids.push_back(expr.name_to_var(name));
@@ -380,17 +411,39 @@ void test_cost_model() {
 	Index i1{{"INV[](d) :- K(k, d)", name2br}};
 	cout<<i1.storage_cost()<<" "<<i1.avg_block_size()<<endl;
 
-	i1 = Index{{"INV[k]() :- K(k, d)", name2br}};
-	cout<<i1.storage_cost()<<" "<<i1.avg_block_size()<<endl;
+	cout<<Index{{"INV[k]() :- K(k, d)", name2br}}.show()<<endl;
 
-	i1 = Index{{"EINV[k](d, e) :- K(k, d); E(e, d)", name2br}};
-	cout<<i1.storage_cost()<<" "<<i1.avg_block_size()<<endl;
+	cout<<Index{{"EINV[k](d, e) :- K(k, d); E(e, d)", name2br}}.show()<<endl;
 
-	i1 = Index{{"EINV[k, c](d, e) :- K(k, d); E(e, d); C(e, c)", name2br}};
-	cout<<i1.storage_cost()<<" "<<i1.avg_block_size()<<endl;
+	cout<<Index{{"EINV[k, c](d, e) :- K(k, d); E(e, d); C(e, c)", name2br}}.show()<<endl;
 
-	i1 = Index{{"DINV[d](e, c) :- E(e, d); C(e, c)", name2br}};
-	cout<<i1.storage_cost()<<" "<<i1.avg_block_size()<<endl;
+	cout<<Index{{"DINV[d](e, c) :- E(e, d); C(e, c)", name2br}}.show()<<endl;
+
+	ViewTuple inv_vt1  = *(query.get_view_tuples(inv).begin());
+	ViewTuple inv_vt2  = *(++query.get_view_tuples(inv).begin());
+	
+	Index einv{{"EINV[k, c](d, e) :- K(k, d); E(e, d); C(e, c)", name2br}};
+
+	ViewTuple einv_vt1  = *(query.get_view_tuples(einv).begin());
+	ViewTuple einv_vt2  = *(++query.get_view_tuples(einv).begin());
+
+	Index dinv{{"DINV[d](e, c) :- E(e, d); C(e, c)", name2br}};
+
+	ViewTuple dinv_vt  = *(query.get_view_tuples(dinv).begin());
+	cout<<inv_vt1.show()<<endl<<inv_vt2.show()<<endl<<einv_vt1.show()<<endl<<einv_vt2.show()<<endl;
+	cout<<dinv_vt.show()<<endl;
+
+	Plan P(query);
+	cout<<"time: "<<P.time(dinv_vt)<<endl;
+	P.append(inv_vt1);
+	cout<<"time: "<<P.time(dinv_vt)<<endl;
+	P.append(inv_vt2);
+	cout<<"time: "<<P.time(dinv_vt)<<endl;
+	P.append(dinv_vt);
+	cout<<"time: "<<P.time(dinv_vt)<<endl;
+
+	Plan nP = P;
+	cout<<P.time(dinv_vt)<<endl;
 }
 
 
@@ -424,7 +477,7 @@ void test_plan() {
 	map<std::string, const BaseRelation*> name2br {{"car", &brs[0]}, {"loc", &brs[1]}, {"part", &brs[2]}};
 	string query_str = "q1[](S) :- car(M, D); loc(D, C); part(S, M, C)";
 	Expression query_expr(query_str, name2br);
-	Query query(query_expr, 1, br2table);
+	Query query(query_expr, 1);
 	cout<<query.expression().show()<<endl;  
 
 	vector<string> index_strs {

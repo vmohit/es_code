@@ -22,6 +22,7 @@ using std::min;
 using std::max;
 using std::cout;
 using std::endl;
+using std::pow;
 
 bool esutils::remove_char(char c) {
 	if(c>='a' && c<='z')
@@ -252,9 +253,9 @@ double esutils::OneMinusXN(const esutils::ExtremeFraction& ef_x,
 	ef_nx.multiply(ef_n);
 	double x=ef_x.eval(), nx=ef_nx.eval();
 	//cout<<"nx: " << nx<<endl;
-	if (x<1 && nx<0.1)
+	if (x<1 && nx<0.0001)
 		return max(0.0, min(1-nx, 1.0));
 	if (x<0.1 && nx>5)
 		return exp(-1*nx);
-	return max(0.0, min(1.0, 1-nx + (nx*(nx-x))/2.0));
+	return max(0.0, min(1.0, pow(1-x, ef_n.eval())));
 }

@@ -451,12 +451,59 @@ void Expression::make_headvar_bound(int headvar) {
 	boundheadvars.insert(headvar);
 }
 
+void Expression::select(int var, Data dt) {
+	assert(headvars.find(var)!=headvars.end());
+	assert(var2dtype.at(var)==dt.get_dtype());
+
+	name2var.erase(var2name.at(var));
+	var2name.erase(var);
+	var2dtype.erase(var);
+
+	for(uint i=0; i<goals.size(); i++)
+		for(uint j=0; j<goals[i].symbols.size(); j++)
+			if(!goals[i].symbols[j].isconstant && goals[i].symbols[j].var==var)
+				goals[i].symbols[j] = Symbol(dt);
+
+	boundheadvars.erase(var);
+	freeheadvars.erase(var);
+	headvars.erase(var);
+	allvars.erase(var);
+	compute_extrafeatures();
+}
+
+int Expression::join(int var1, int var2) {
+	assert(headvars.find(var1)!=headvars.end());
+	assert(headvars.find(var2)!=headvars.end());
+	assert(var2dtype.at(var1)==var2dtype.at(var2));
+
+	name2var.erase(var2name.at(var2));
+	var2name.erase(var2);
+	var2dtype.erase(var2);
+
+	for(uint i=0; i<goals.size(); i++)
+		for(uint j=0; j<goals[i].symbols.size(); j++)
+			if(!goals[i].symbols[j].isconstant && goals[i].symbols[j].var==var2)
+				goals[i].symbols[j] = Symbol(var1);
+
+	boundheadvars.erase(var2);
+	freeheadvars.erase(var2);
+	headvars.erase(var2);
+	allvars.erase(var2);
+	compute_extrafeatures();
+	return var1;
+}
+
+
 bool Expression::is_free_headvar(int var) const {
 	return freeheadvars.find(var)!=freeheadvars.end();
 }
 
 bool Expression::is_bound_headvar(int var) const {
 	return boundheadvars.find(var)!=boundheadvars.end();
+}
+
+const set<int>& Expression::bound_headvars() const {
+	return boundheadvars;
 }
 
 const string& Expression::get_join_merge_sketch() const {
@@ -568,7 +615,15 @@ Expression Expression::merge_with(const Expression& exp) const {
 	return result;
 }
 
+set<int> all_goals(int n) {
+	set<int> s;
+	for(int i=0; i<n; i++)
+		s.insert(i);
+	return s;
+}
 
+CardinalityEstimator::CardinalityEstimator(const Expression& exp_arg) :
+CardinalityEstimator(exp_arg, all_goals(exp_arg.num_goals())) {}
 
 CardinalityEstimator::CardinalityEstimator(const Expression& exp_arg,
 		const set<int>& goals_arg) : exp(exp_arg) {
@@ -579,6 +634,10 @@ CardinalityEstimator::CardinalityEstimator(const Expression& exp_arg,
 	// for(auto gid: goals)
 	// 	cout<<goal2selectivity[gid]<<" ";
 	// cout<<endl;
+}
+
+const set<int> CardinalityEstimator::considered_goals() const {
+	return goals;
 }
 
 void CardinalityEstimator::add_goal(int gid) {
@@ -600,8 +659,12 @@ void CardinalityEstimator::add_goal(int gid) {
 	goals.insert(gid);
 }
 
-
 vector<double> CardinalityEstimator::get_cardinalities(const vector<int>& varids) const {
+	return get_cardinalities(varids, set<int>());
+}
+
+vector<double> CardinalityEstimator::get_cardinalities(const vector<int>& varids,
+	const set<int>& pre_select_vars) const {
 	set<int> select_vids;
 	vector<double> result;
 	for(auto varid: varids) {
@@ -622,7 +685,8 @@ vector<double> CardinalityEstimator::get_cardinalities(const vector<int>& varids
 					if(symbol.isconstant) continue;
 					int var = symbol.var;
 					if(var==varid) apply_goal=true;
-					if(select_vids.find(var)==select_vids.end()) {
+					if(select_vids.find(var)==select_vids.end() &&
+						pre_select_vars.find(var)==pre_select_vars.end()) {
 						apply_goal = true;
 						if(considered_vars.find(var)==considered_vars.end())
 							n.multiply(var2card.at(var));
@@ -645,4 +709,12 @@ vector<double> CardinalityEstimator::get_cardinalities(const vector<int>& varids
 
 double CardinalityEstimator::var_card(int var) const {
 	return var2card.at(var);
+}
+
+bool CardinalityEstimator::is_present(int var) const {
+	return var2card.find(var)!=var2card.end();
+}
+
+const Expression& CardinalityEstimator::expression() const {
+	return exp;
 }

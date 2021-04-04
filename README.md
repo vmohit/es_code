@@ -35,8 +35,8 @@ Following plan has weekly checkpoints. Please refer to the checkboxes to measure
 	1. If an index has too high maintenance cost then don't consider it
 	2. Compute lower and upper bounds on the cost contribution of each view tuple. If the lower bound of cost contribution of a view tuple is too high, then don't consider it.
 
-- [ ] [January 13] Implement weighted set cover based optimizer
+- [x] [January 13] Implement weighted set cover based optimizer
 
-- [ ] [January 13] Implement branch and bound based optimizer
+- [x] [January 13] Implement branch and bound based optimizer
 
 

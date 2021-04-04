@@ -14,24 +14,25 @@ class ViewTuple;
 
 const double mem_storage_weight=10;
 const double disk_storage_weight=1;
-const double disk_read_time_per_unit=10;
-const double disk_seek_time=1;
+const double disk_read_time_per_unit=1;
+const double disk_seek_time=100;
 
 /** Index */
 class Index {
 	Expression exp;
-	
-	double avg_disk_block_size=0;
-	double total_storage_cost=0;
-public:
+	CardinalityEstimator E;
 
+	double avg_disk_block_size;
+	double total_storage_cost;
+public:
+	//Index& operator=(const Index& other);
 	Index(const Expression& exp_arg);
 	const Expression& expression() const;
 	std::string show(bool verbose=true) const;
 	double storage_cost() const;
 	double avg_block_size() const;
+	const CardinalityEstimator& get_estimator() const;
 };
-
 
 /** Query */
 class Query {
@@ -40,19 +41,13 @@ class Query {
 	std::list<BaseRelation::Table> tables;
 	std::map<const BaseRelation*, const BaseRelation::Table*> br2table;
 
-	/**
-	Randomly selected sample inputs used for estimating cost.
-	Each sample input is a map from bound head var to some constant such that 
-	the output of the query instance is non empty
-	*/
-	std::vector<std::map<int, Data>> sample_inputs;  
 	double wt;
+	std::vector<int> g_order;
 public:
-	Query(const Expression& exp_arg, double wgt, const std::map<const BaseRelation*, 
-		const BaseRelation::Table*>& stats_br2table, int num_samples=10);
+	Query(const Expression& exp_arg, double wgt);
+	const std::vector<int>& goal_order() const;
 	const Expression& expression() const;
 	std::list<ViewTuple> get_view_tuples(const Index& index) const;
-	const std::vector<std::map<int, Data>>& get_sample_inputs() const;
 	std::string show(bool verbose=true) const; 
 	double weight() const; 
 };
@@ -65,18 +60,27 @@ public:
 	std::map<int, Expression::Symbol> index2query;  //!< index variables to query variables
 	std::set<std::set<int>> subcores;
 	double cost_lb = 0;  //!< lower bound
-	double cost_ub = 10000000; //!< upper bound
+	double cost_ub = 1e20; //!< upper bound
 	std::set<uint> sc_goals;  //!< strongly covered goals
 	std::set<uint> wc_goals;  //!< weakly covered goals
+
+	uint first_sc_goal_ind; //!< index of the first sc goal based on the goal order of the query
 
 	ViewTuple(const Query& query_arg,
 		const Index& index_arg,
 		std::map<int, Expression::Symbol> index2query_arg);
-	std::string show() const;
+	std::string show(bool verbose=true) const;
 
-	const std::set<uint>& covered_goals(bool oe) const;
+	std::map<int, int> qvar2evar;
+	CardinalityEstimator E;
 
+	// same quantities but only considering the bound head variables
+	std::map<int, int> qvar2evar_bh;
+	CardinalityEstimator E_bh;
+
+	const std::set<uint>& covered_goals(bool oe) const;  //!< returns weakly or strongly covered goals
 private:
+
 	void try_match(bool& match, std::set<int>& subcore,
 		std::set<int>& unmapped_goals, std::map<int, int>& mu);
 };
@@ -86,18 +90,13 @@ class Plan {
 	const Query& query;
 	std::vector<const ViewTuple*> stages;
 	std::set<const ViewTuple*> set_stages;
-	std::list<std::list<DataFrame>> stats;
-	std::list<std::list<std::map<int, std::string>>> queryvar2cid;
 	double cost=0;
-
-	void execute_view_tuple(const ViewTuple& vt, std::list<DataFrame>& df_vt_lst, 
-		std::list<std::map<int, std::string>>& qvar2cid_lst) const;
-	double try_append(const ViewTuple& vt, std::list<std::list<DataFrame>>& new_stats,
-		std::list<std::list<std::map<int, std::string>>>& new_queryvar2cid) const;
 
 	std::set<uint> sc_goals;
 	std::set<uint> wc_goals;
 	bool complete=false;
+
+	CardinalityEstimator E;
 
 	bool check_completeness(std::set<int>& covered_goals,
 		std::vector<std::set<int>>& subcores, uint pos) const;
